@@ -57,6 +57,13 @@ resource "mssql_database" "this" {
   collation = try(each.value.default_collation, null)
 }
 
+data "mssql_schemas" "all_schemas" {
+  for_each = {
+    for key, db in var.databases : key => db
+  }
+  database_id = mssql_database.this[each.key].id
+}
+
 resource "mssql_sql_login" "owner" {
   depends_on = [mssql_database.this]
   for_each = {

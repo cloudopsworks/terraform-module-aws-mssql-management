@@ -6,19 +6,21 @@
 #       WebSite: https://cloudops.works
 #     Distributed Under Apache v2.0 License
 #
-data "mssql_schema" "user_rw_schema" {
-  for_each = {
-    for key, user in var.users : key => user if try(user.grant, "") == "readwrite"
+
+locals {
+  schema_maping = {
+    for key, db in var.databases : key => {
+      for schema in data.mssql_schemas.all_schemas[key].schemas : schema.name => schema.id
+    }
   }
-  name        = try(each.value.schema, "dbo")
-  database_id = try(each.value.db_ref, "") != "" ? mssql_database.this[each.value.db_ref].id : each.value.database_id
 }
+
 
 resource "mssql_schema_permission" "user_tab_def_priv" {
   for_each = {
     for key, user in var.users : key => user if try(user.grant, "") == "readwrite"
   }
-  schema_id    = data.mssql_schema.user_rw_schema[each.key].id
+  schema_id    = local.schema_maping[try(each.value.db_ref, "") != "" ? each.value.db_ref : each.value.database_id][try(each.value.schema, "dbo")]
   principal_id = mssql_sql_login.user[each.key].id
   permission   = "SELECT, INSERT, UPDATE, DELETE, EXECUTE"
 }
