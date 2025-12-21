@@ -109,7 +109,7 @@ resource "mssql_server_role_member" "owner_public" {
   for_each = {
     for key, db in var.databases : key => db if try(db.create_owner, false)
   }
-  role_id   = data.mssql_server_role.public[each.key].id
+  role_id   = data.mssql_server_role.public.id
   member_id = mssql_sql_user.owner[each.key].id
 }
 
