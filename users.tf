@@ -45,14 +45,30 @@ resource "random_password" "user_initial" {
   min_lower        = 2
 }
 
-resource "mysql_user" "user" {
+resource "mssql_sql_login" "user" {
   for_each = var.users
-  user     = each.value.name
-  host     = try(each.value.host, null)
-  plaintext_password = var.rotation_lambda_name == "" ? random_password.user[each.key].result : (
+  name     = each.value.name
+  password = var.rotation_lambda_name == "" ? random_password.user[each.key].result : (
     try(length(data.aws_secretsmanager_secret_versions.user_rotated[each.key].versions), 0) > 0 && !var.force_reset ?
     jsondecode(data.aws_secretsmanager_secret_version.user_rotated[each.key].secret_string)["password"] :
     random_password.user_initial[each.key].result
   )
-  tls_option = try(each.value.tls_option, null)
+  default_database_id       = try(each.value.database_id, "") != "" ? each.value.database_id : mssql_database.this[each.value.db_ref].id
+  default_language          = try(each.value.default_language, null)
+  check_password_expiration = try(each.value.check_password_expiration, true)
+  check_password_policy     = try(each.value.check_password_policy, true)
+  must_change_password      = try(each.value.must_change_password, true)
+}
+
+resource "mssql_sql_user" "user" {
+  for_each    = var.users
+  name        = each.value.name
+  database_id = try(each.value.database_id, "") != "" ? each.value.database_id : mssql_database.this[each.value.db_ref].id
+  login_id    = mssql_sql_login.user[each.key].id
+}
+
+resource "mssql_server_role_member" "user_public" {
+  for_each  = var.users
+  role_id   = data.mssql_server_role.public.id
+  member_id = mssql_sql_login.user[each.key].id
 }

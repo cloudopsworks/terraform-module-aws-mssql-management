@@ -7,18 +7,19 @@
 #     Distributed Under Apache v2.0 License
 #
 
-resource "mysql_grant" "user_ro_tab_def_priv" {
+data "mssql_schema" "user_ro_schema" {
   for_each = {
     for key, user in var.users : key => user if try(user.grant, "") == "readonly"
   }
-  database = try(each.value.db_ref, "") != "" ? mysql_database.this[each.value.db_ref].name : each.value.database_name
-  user     = mysql_user.user[each.key].user
-  host     = mysql_user.user[each.key].host
-  table    = "*"
-  privileges = [
-    "SELECT",
-  ]
-  depends_on = [
-    mysql_database.this,
-  ]
+  name        = try(each.value.schema, "dbo")
+  database_id = try(each.value.db_ref, "") != "" ? mssql_database.this[each.value.db_ref].id : each.value.database_id
+}
+
+resource "mssql_schema_permission" "user_ro_tab_def_priv" {
+  for_each = {
+    for key, user in var.users : key => user if try(user.grant, "") == "readonly"
+  }
+  schema_id    = data.mssql_schema.user_ro_schema[each.key].id
+  principal_id = mssql_sql_login.user[each.key].id
+  permission   = "SELECT"
 }

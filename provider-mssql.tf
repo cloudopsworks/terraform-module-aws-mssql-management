@@ -66,12 +66,18 @@ locals {
   )
 }
 
-provider "mysql" {
-  endpoint = format("%s:%s",
-    try(local.psql.jump_host, "") != "" ? local.psql.jump_host : local.psql.host,
-    try(local.psql.jump_port, "") != "" ? local.psql.jump_port : local.psql.port
-  )
-  username = local.psql.username
-  password = local.psql.password
-  tls      = "skip-verify"
+provider "mssql" {
+  # endpoint = format("%s:%s",
+  #   try(local.psql.jump_host, "") != "" ? local.psql.jump_host : local.psql.host,
+  #   try(local.psql.jump_port, "") != "" ? local.psql.jump_port : local.psql.port
+  # )
+  # username = local.psql.username
+  # password = local.psql.password
+  # tls      = "skip-verify"
+  hostname = try(local.psql.jump_host, "") != "" ? local.psql.jump_host : local.psql.host
+  port     = try(local.psql.jump_port, "") != "" ? local.psql.jump_port : local.psql.port
+  sql_auth = {
+    username = local.psql.username
+    password = local.psql.password
+  }
 }

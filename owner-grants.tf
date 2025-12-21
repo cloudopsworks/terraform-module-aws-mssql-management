@@ -7,26 +7,11 @@
 #     Distributed Under Apache v2.0 License
 #
 
-locals {
-  admin_role = {
-    for key, user in var.users : key => {
-      name = user.name
-      admin_role = try(user.db_ref, "") != "" ? (
-        try(var.databases[user.db_ref].create_owner, false) ? mysql_user.owner[user.db_ref].user :
-        var.databases[user.db_ref].owner
-      ) : user.database_owner
-    }
-  }
-}
-
-resource "mysql_grant" "user_all_db" {
+# TODO: Fix resolution of role under existing DBs
+resource "mssql_database_role_member" "user_all_db" {
   for_each = {
     for key, user in var.users : key => user if try(user.grant, "") == "owner"
   }
-  database = try(each.value.db_ref, "") != "" ? mysql_database.this[each.value.db_ref].name : each.value.database_name
-  user     = mysql_user.user[each.key].user
-  host     = mysql_user.user[each.key].host
-  privileges = [
-    "ALL PRIVILEGES"
-  ]
+  role_id   = try(each.value.db_ref, "") != "" ? data.mssql_database_role.db_owner[each.value.db_ref].id : null
+  member_id = mssql_sql_login.user[each.key].id
 }

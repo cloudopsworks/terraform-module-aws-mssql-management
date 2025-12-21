@@ -35,7 +35,7 @@ locals {
         try(var.hoop.cluster, false) ? data.aws_rds_cluster.hoop_db_server[0].port :
         data.aws_db_instance.hoop_db_server[0].port
       ) : local.psql.port
-      dbname = try(user.db_ref, "") != "" ? mysql_database.this[user.db_ref].name : user.database_name
+      dbname = try(user.db_ref, "") != "" ? mssql_database.this[user.db_ref].name : user.database_name
       engine = local.psql.engine
       },
       length(data.aws_secretsmanager_secret.db_password) > 0 ? {
@@ -47,34 +47,34 @@ locals {
     for key, user_secret in local.user_secrets_data : key => merge(user_secret,
       try(var.users[key].connection_string_type, "") == "jdbc" ? {
         connection_string_type = var.users[key].connection_string_type
-        connection_string = format("jdbc:mysql://%s:%s/%s?user=%s&password=%s&useSSL=true",
+        connection_string = format("jdbc:sqlserver://%s:%s;databaseName=%s;user=%s;password=%s;",
           user_secret.host, user_secret.port, user_secret.dbname,
           user_secret.username, urlencode(user_secret.password)
         )
       } : {},
       try(var.users[key].connection_string_type, "") == "jdbc_plain" ? {
         connection_string_type = "jdbc"
-        connection_string = format("jdbc:mysql://%s:%s/%s",
+        connection_string = format("jdbc:sqlserver://%s:%s;databaseName=%s",
           user_secret.host, user_secret.port, user_secret.dbname
         )
       } : {},
       try(var.users[key].connection_string_type, "") == "dotnet" ? {
         connection_string_type = var.users[key].connection_string_type
-        connection_string = format("Server=%s;Port=%s;Database=%s;Uid=%s;Pwd=%s;SslMode=Preferred",
+        connection_string = format("Server=%s,%s;Database=%s;User Id=%s;Password=%s;",
           user_secret.host, user_secret.port,
           user_secret.dbname, user_secret.username, user_secret.password,
         )
       } : {},
-      try(var.users[key].connection_string_type, "") == "odbc" ? {
+      try(var.users[key].connection_string_type, "") == "odbc" || try(var.users[key].connection_string_type, "") == "node" ? {
         connection_string_type = var.users[key].connection_string_type
-        connection_string = format("Driver={MySQL ODBC 5.2 UNICODE Driver};Server=%s;Port=%s;Database=%s;User=%s;Password=%s;Option=3;",
+        connection_string = format("Driver={{SQL Server}};Server=%s,%s;Database=%s;Uid=%s;Pwd=%s;",
           user_secret.host, user_secret.port, user_secret.dbname,
           user_secret.username, user_secret.password
         )
       } : {},
-      try(var.users[key].connection_string_type, "") == "gomysql" ? {
+      try(var.users[key].connection_string_type, "") == "gomssql" ? {
         connection_string_type = var.users[key].connection_string_type
-        connection_string = format("%s:%s@tcp(%s):%s/%s?ssl=Preferred",
+        connection_string = format("sqlserver://%s:%s@%s:%s?database=%s",
           user_secret.username, urlencode(user_secret.password), user_secret.host,
           user_secret.port, user_secret.dbname
         )
@@ -104,7 +104,7 @@ locals {
         try(var.hoop.cluster, false) ? data.aws_rds_cluster.hoop_db_server[0].port :
         data.aws_db_instance.hoop_db_server[0].port
       ) : local.psql.port
-      dbname = try(user.db_ref, "") != "" ? mysql_database.this[user.db_ref].name : user.database_name
+      dbname = try(user.db_ref, "") != "" ? mssql_database.this[user.db_ref].name : user.database_name
       engine = local.psql.engine
       },
       length(data.aws_secretsmanager_secret.db_password) > 0 ? {
@@ -161,7 +161,7 @@ resource "aws_secretsmanager_secret" "user" {
   tags = merge(local.all_tags, {
     "rds-username" = each.value.name
     "rds-datatabase-name" = (try(each.value.db_ref, "") != "" ?
-      mysql_database.this[each.value.db_ref].name
+      mssql_database.this[each.value.db_ref].name
       : each.value.database_name
     )
     "rds-server-name" = local.psql.server_name

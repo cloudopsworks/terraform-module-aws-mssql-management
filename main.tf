@@ -51,38 +51,66 @@ resource "random_password" "owner_initial" {
   min_lower        = 2
 }
 
-resource "mysql_database" "this" {
-  for_each              = var.databases
-  name                  = each.value.name
-  default_character_set = try(each.value.default_character_set, null)
-  default_collation     = try(each.value.default_collation, null)
+resource "mssql_database" "this" {
+  for_each  = var.databases
+  name      = each.value.name
+  collation = try(each.value.default_collation, null)
 }
 
-resource "mysql_user" "owner" {
-  depends_on = [mysql_database.this]
+resource "mssql_sql_login" "owner" {
+  depends_on = [mssql_database.this]
   for_each = {
     for key, db in var.databases : key => db if try(db.create_owner, false)
   }
-  user = local.owner_list[each.key]
-  host = try(each.value.host, null)
-  plaintext_password = var.rotation_lambda_name == "" ? random_password.owner[each.key].result : (
+  name = local.owner_list[each.key]
+  password = var.rotation_lambda_name == "" ? random_password.owner[each.key].result : (
     try(length(data.aws_secretsmanager_secret_versions.owner_rotated[each.key].versions), 0) > 0 && !var.force_reset ?
     jsondecode(data.aws_secretsmanager_secret_version.owner_rotated[each.key].secret_string)["password"] :
     random_password.owner_initial[each.key].result
   )
-  tls_option = try(each.value.tls_option, null)
+  default_database_id       = mssql_database.this[each.key].id
+  default_language          = try(each.value.default_language, null)
+  check_password_expiration = try(each.value.check_password_expiration, true)
+  check_password_policy     = try(each.value.check_password_policy, true)
+  must_change_password      = try(each.value.must_change_password, true)
 }
 
-resource "mysql_grant" "owner" {
-  depends_on = [mysql_user.owner]
+resource "mssql_sql_user" "owner" {
+  depends_on = [mssql_sql_login.owner]
   for_each = {
     for key, db in var.databases : key => db if try(db.create_owner, false)
   }
-  user     = mysql_user.owner[each.key].user
-  host     = mysql_user.owner[each.key].host
-  database = mysql_database.this[each.key].name
-  privileges = [
-    "ALL PRIVILEGES"
-  ]
-  grant = true
+  name        = local.owner_list[each.key]
+  login_id    = mssql_sql_login.owner[each.key].id
+  database_id = mssql_database.this[each.key].id
+}
+
+data "mssql_server_role" "public" {
+  name = "public"
+}
+
+data "mssql_database_role" "db_owner" {
+  for_each = {
+    for key, db in var.databases : key => db
+  }
+  database_id = mssql_database.this[each.key].id
+  name        = "db_owner"
+}
+
+resource "mssql_server_role_member" "owner_public" {
+  depends_on = [mssql_sql_login.owner]
+  for_each = {
+    for key, db in var.databases : key => db if try(db.create_owner, false)
+  }
+  role_id   = data.mssql_server_role.public
+  member_id = mssql_sql_user.owner[each.key].id
+}
+
+resource "mssql_database_role_member" "dbowner" {
+  depends_on = [mssql_sql_login.owner]
+  for_each = {
+    for key, db in var.databases : key => db if try(db.create_owner, false)
+  }
+  role_id   = data.mssql_database_role.db_owner[each.key].id
+  member_id = mssql_sql_user.owner[each.key].id
 }
