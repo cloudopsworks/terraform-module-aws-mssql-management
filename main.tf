@@ -104,14 +104,14 @@ data "mssql_database_role" "db_owner" {
   name        = "db_owner"
 }
 
-resource "mssql_server_role_member" "owner_public" {
-  depends_on = [mssql_sql_login.owner]
-  for_each = {
-    for key, db in var.databases : key => db if try(db.create_owner, false)
-  }
-  role_id   = data.mssql_server_role.public.id
-  member_id = mssql_sql_login.owner[each.key].principal_id
-}
+# resource "mssql_server_role_member" "owner_public" {
+#   depends_on = [mssql_sql_login.owner]
+#   for_each = {
+#     for key, db in var.databases : key => db if try(db.create_owner, false)
+#   }
+#   role_id   = data.mssql_server_role.public.id
+#   member_id = mssql_sql_login.owner[each.key].principal_id
+# }
 
 resource "mssql_database_role_member" "dbowner" {
   depends_on = [mssql_sql_login.owner]

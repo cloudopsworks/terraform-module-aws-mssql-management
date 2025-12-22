@@ -67,8 +67,8 @@ resource "mssql_sql_user" "user" {
   login_id    = mssql_sql_login.user[each.key].id
 }
 
-resource "mssql_server_role_member" "user_public" {
-  for_each  = var.users
-  role_id   = data.mssql_server_role.public.id
-  member_id = mssql_sql_login.user[each.key].principal_id
-}
+# resource "mssql_server_role_member" "user_public" {
+#   for_each  = var.users
+#   role_id   = data.mssql_server_role.public.id
+#   member_id = mssql_sql_login.user[each.key].principal_id
+# }
