@@ -55,9 +55,9 @@ resource "mssql_sql_login" "user" {
   )
   default_database_id       = try(each.value.database_id, "") != "" ? each.value.database_id : mssql_database.this[each.value.db_ref].id
   default_language          = try(each.value.default_language, null)
-  check_password_expiration = try(each.value.check_password_expiration, true)
-  check_password_policy     = try(each.value.check_password_policy, true)
-  must_change_password      = try(each.value.must_change_password, true)
+  check_password_expiration = try(each.value.check_password_expiration, false)
+  check_password_policy     = try(each.value.check_password_policy, false)
+  must_change_password      = try(each.value.must_change_password, false)
 }
 
 resource "mssql_sql_user" "user" {

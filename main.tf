@@ -51,8 +51,17 @@ resource "random_password" "owner_initial" {
   min_lower        = 2
 }
 
+data "mssql_database" "this" {
+  for_each = {
+    for key, db in var.databases : key => db if !try(db.create, true)
+  }
+  name = each.value.name
+}
+
 resource "mssql_database" "this" {
-  for_each  = var.databases
+  for_each = {
+    for key, db in var.databases : key => db if try(db.create, true)
+  }
   name      = each.value.name
   collation = try(each.value.default_collation, null)
 }
@@ -61,7 +70,7 @@ data "mssql_schemas" "all_schemas" {
   for_each = {
     for key, db in var.databases : key => db
   }
-  database_id = mssql_database.this[each.key].id
+  database_id = try(each.value.create, true) ? mssql_database.this[each.key].id : data.mssql_database.this[each.key].id
 }
 
 resource "mssql_sql_login" "owner" {
@@ -75,11 +84,11 @@ resource "mssql_sql_login" "owner" {
     jsondecode(data.aws_secretsmanager_secret_version.owner_rotated[each.key].secret_string)["password"] :
     random_password.owner_initial[each.key].result
   )
-  default_database_id       = mssql_database.this[each.key].id
+  default_database_id       = try(each.value.create, true) ? mssql_database.this[each.key].id : data.mssql_database.this[each.key].id
   default_language          = try(each.value.default_language, null)
-  check_password_expiration = try(each.value.check_password_expiration, true)
-  check_password_policy     = try(each.value.check_password_policy, true)
-  must_change_password      = try(each.value.must_change_password, true)
+  check_password_expiration = try(each.value.check_password_expiration, false)
+  check_password_policy     = try(each.value.check_password_policy, false)
+  must_change_password      = try(each.value.must_change_password, false)
 }
 
 resource "mssql_sql_user" "owner" {
@@ -89,7 +98,7 @@ resource "mssql_sql_user" "owner" {
   }
   name        = local.owner_list[each.key]
   login_id    = mssql_sql_login.owner[each.key].id
-  database_id = mssql_database.this[each.key].id
+  database_id = try(each.value.create, true) ? mssql_database.this[each.key].id : data.mssql_database.this[each.key].id
 }
 
 data "mssql_server_role" "public" {
@@ -100,7 +109,7 @@ data "mssql_database_role" "db_owner" {
   for_each = {
     for key, db in var.databases : key => db
   }
-  database_id = mssql_database.this[each.key].id
+  database_id = try(each.value.create, true) ? mssql_database.this[each.key].id : data.mssql_database.this[each.key].id
   name        = "db_owner"
 }
 
