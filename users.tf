@@ -53,7 +53,7 @@ resource "mssql_sql_login" "user" {
     jsondecode(data.aws_secretsmanager_secret_version.user_rotated[each.key].secret_string)["password"] :
     random_password.user_initial[each.key].result
   )
-  default_database_id       = try(each.value.database_id, "") != "" ? each.value.database_id : mssql_database.this[each.value.db_ref].id
+  default_database_id       = try(each.value.database_id, "") != "" ? each.value.database_id : (try(var.databases[each.value.db_ref].create, true) ? mssql_database.this[each.value.db_ref].id : data.mssql_database.this[each.value.db_ref].id)
   default_language          = try(each.value.default_language, null)
   check_password_expiration = try(each.value.check_password_expiration, false)
   check_password_policy     = try(each.value.check_password_policy, false)
@@ -63,7 +63,7 @@ resource "mssql_sql_login" "user" {
 resource "mssql_sql_user" "user" {
   for_each    = var.users
   name        = each.value.name
-  database_id = try(each.value.database_id, "") != "" ? each.value.database_id : mssql_database.this[each.value.db_ref].id
+  database_id = try(each.value.database_id, "") != "" ? each.value.database_id : (try(var.databases[each.value.db_ref].create, true) ? mssql_database.this[each.value.db_ref].id : data.mssql_database.this[each.value.db_ref].id)
   login_id    = mssql_sql_login.user[each.key].id
 }
 
