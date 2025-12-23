@@ -43,7 +43,7 @@ locals {
     port        = try(var.hoop.port, 3306)
     username    = try(var.hoop.username, "noop")
     password    = try(var.hoop.password, "noop")
-    engine      = try(var.hoop.engine, "mysql")
+    engine      = try(var.hoop.engine, "sqlserver")
     db_name     = var.hoop.db_name
   } : {}
   direct_psql = !try(var.rds.enabled, false) && !local.hoop_connect ? {
@@ -54,7 +54,7 @@ locals {
     jump_port   = try(var.direct.jump_port, "")
     username    = try(var.direct.secret_name, "") != "" ? nonsensitive(local.from_secret["username"]) : var.direct.username
     password    = try(var.direct.secret_name, "") != "" ? local.from_secret["password"] : sensitive(var.direct.password)
-    engine      = try(var.direct.engine, "mysql")
+    engine      = try(var.direct.engine, "sqlserver")
     db_name     = var.direct.db_name
   } : null
   psql = merge(

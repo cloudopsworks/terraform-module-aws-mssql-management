@@ -56,8 +56,8 @@ variable "databases" {
 #   agent: "agent_name" # (optional) Name of the hoop agent, required if enabled is true
 #   # Optional below for rds.enabled=false and run with a 'hoop connect' session, most suited for local runs
 #   connection_name: "mysql-prod-forward-myapp-dev-001-usea1-ow"
-#   db_name: "mysql"
-#   engine: "mysql"
+#   db_name: "sqlserver"
+#   engine: "sqlserver"
 #   server_name: "mysql-prod-cluster"
 #   cluster: false
 #   # Optional local tunnel parameters (used when hoop.enabled=true and running `hoop connect`):
