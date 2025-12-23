@@ -3,8 +3,8 @@
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
-| <a name="requirement_mysql"></a> [mysql](#requirement\_mysql) | ~> 3.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.4 |
+| <a name="requirement_mssql"></a> [mssql](#requirement\_mssql) | ~> 0.6 |
 | <a name="requirement_null"></a> [null](#requirement\_null) | ~> 3.1 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.7 |
 | <a name="requirement_time"></a> [time](#requirement\_time) | ~> 0.13 |
@@ -13,8 +13,8 @@
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.8.0 |
-| <a name="provider_mysql"></a> [mysql](#provider\_mysql) | 3.0.84 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.27.0 |
+| <a name="provider_mssql"></a> [mssql](#provider\_mssql) | 0.6.0 |
 | <a name="provider_null"></a> [null](#provider\_null) | 3.2.4 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.7.2 |
 | <a name="provider_time"></a> [time](#provider\_time) | 0.13.1 |
@@ -37,15 +37,15 @@
 | [aws_secretsmanager_secret_version.owner_rotated](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.user](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.user_rotated](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
-| [mysql_database.this](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/database) | resource |
-| [mysql_grant.owner](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_grant.role](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_grant.user_all_db](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_grant.user_ro_tab_def_priv](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_grant.user_tab_def_priv](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_role.role](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/role) | resource |
-| [mysql_user.owner](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/user) | resource |
-| [mysql_user.user](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/user) | resource |
+| [mssql_database.this](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database) | resource |
+| [mssql_database_role_member.dbowner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database_role_member) | resource |
+| [mssql_database_role_member.user_all_db](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database_role_member) | resource |
+| [mssql_schema_permission.user_ro_tab_def_priv](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/schema_permission) | resource |
+| [mssql_schema_permission.user_tab_def_priv](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/schema_permission) | resource |
+| [mssql_sql_login.owner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_login) | resource |
+| [mssql_sql_login.user](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_login) | resource |
+| [mssql_sql_user.owner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_user) | resource |
+| [mssql_sql_user.user](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_user) | resource |
 | [null_resource.hoop_connection_owners](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.hoop_connection_users](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [random_password.owner](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
@@ -68,28 +68,32 @@
 | [aws_secretsmanager_secret_versions.user_rotated](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secret_versions) | data source |
 | [aws_secretsmanager_secrets.owner](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secrets) | data source |
 | [aws_secretsmanager_secrets.user](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secrets) | data source |
+| [mssql_database.this](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/database) | data source |
+| [mssql_database_role.db_owner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/database_role) | data source |
+| [mssql_schemas.all_schemas](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/schemas) | data source |
+| [mssql_server_role.public](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/server_role) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_databases"></a> [databases](#input\_databases) | Databases and database attributes - see docs for example | `any` | `{}` | no |
-| <a name="input_direct"></a> [direct](#input\_direct) | Direct connection attributes - see docs for example | `any` | `{}` | no |
+| <a name="input_databases"></a> [databases](#input\_databases) | databases:<br/>  <db\_ref>:<br/>    name: "db\_name"                        # (Required) Name of the database<br/>    create: true                           # (Optional) Whether to create the database. Defaults to true<br/>    create\_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false<br/>    owner: "owner\_name"                    # (Optional) Owner of the database, required if create\_owner is false<br/>    default\_collation: "SQL\_Latin1\_General\_CP1\_CI\_AS" # (Optional) Collation of the database. Defaults to server default<br/>    default\_language: "English"            # (Optional) Default language for the owner user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration for owner. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy for owner. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password for owner on first login. Defaults to false | `any` | `{}` | no |
+| <a name="input_direct"></a> [direct](#input\_direct) | direct:<br/>  server\_name: "server"                    # (Required) Logical server name<br/>  host: "host\_address"                     # (Required) Database host address<br/>  port: 1433                               # (Required) Database port<br/>  jump\_host: "jump\_host"                   # (Optional) Jump host address<br/>  jump\_port: 22                            # (Optional) Jump host port<br/>  username: "admin"                        # (Optional) Database username<br/>  password: "password"                     # (Optional) Database password<br/>  secret\_name: "secret\_path"               # (Optional) AWS Secrets Manager secret name for credentials<br/>  engine: "sqlserver"                     # (Optional) Database engine. Defaults to sqlserver<br/>  db\_name: "master"                        # (Optional) Default database name | `any` | `{}` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
-| <a name="input_force_reset"></a> [force\_reset](#input\_force\_reset) | Force Reset the password | `bool` | `false` | no |
-| <a name="input_hoop"></a> [hoop](#input\_hoop) | Hoop attributes - see docs for example | `any` | `{}` | no |
+| <a name="input_force_reset"></a> [force\_reset](#input\_force\_reset) | Force Reset the password # (Optional) Defaults to false | `bool` | `false` | no |
+| <a name="input_hoop"></a> [hoop](#input\_hoop) | hoop:<br/>  enabled: false                           # (Optional) If the hoop should be enabled. Defaults to false<br/>  agent: "agent\_name"                      # (Optional) Name of the hoop agent. Required if enabled is true<br/>  connection\_name: "conn\_name"             # (Optional) Name of the hoop connection.<br/>  db\_name: "sqlserver"                     # (Optional) Database name for hoop connection<br/>  engine: "sqlserver"                     # (Optional) Engine for hoop connection<br/>  server\_name: "server\_name"               # (Optional) Logical server name<br/>  cluster: false                           # (Optional) If it's a cluster<br/>  port: 1433                               # (Optional) Port for local tunnel. Defaults to 1433<br/>  username: "user"                         # (Optional) Username for local tunnel<br/>  password: "pass"                         # (Optional) Password for local tunnel<br/>  tags:                                    # (Optional) Tags to apply to the hoop. format <tagname>=<tagvalue><br/>    - "tag=value" | `any` | `{}` | no |
 | <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Is this a hub or spoke configuration? | `bool` | `false` | no |
 | <a name="input_org"></a> [org](#input\_org) | Organization details | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
-| <a name="input_password_rotation_period"></a> [password\_rotation\_period](#input\_password\_rotation\_period) | Password rotation period in days | `number` | `90` | no |
-| <a name="input_rds"></a> [rds](#input\_rds) | RDS attributes - see docs for example | `any` | `{}` | no |
-| <a name="input_roles"></a> [roles](#input\_roles) | Roles and role attributes - see docs for example | `any` | `{}` | no |
-| <a name="input_rotate_immediately"></a> [rotate\_immediately](#input\_rotate\_immediately) | Rotate the password immediately | `bool` | `false` | no |
-| <a name="input_rotation_duration"></a> [rotation\_duration](#input\_rotation\_duration) | Duration of the lambda function to rotate the password | `string` | `"1h"` | no |
-| <a name="input_rotation_lambda_name"></a> [rotation\_lambda\_name](#input\_rotation\_lambda\_name) | Name of the lambda function to rotate the password | `string` | `""` | no |
-| <a name="input_run_hoop"></a> [run\_hoop](#input\_run\_hoop) | Run hoop with agent, be careful with this option, it will run the HOOP command in output in a null\_resource | `bool` | `false` | no |
-| <a name="input_secrets_kms_key_id"></a> [secrets\_kms\_key\_id](#input\_secrets\_kms\_key\_id) | (optional) KMS Key ID to use to encrypt data in this secret, can be ARN or KMS Alias | `string` | `null` | no |
+| <a name="input_password_rotation_period"></a> [password\_rotation\_period](#input\_password\_rotation\_period) | Password rotation period in days # (Optional) Defaults to 90 | `number` | `90` | no |
+| <a name="input_rds"></a> [rds](#input\_rds) | rds:<br/>  enabled: false                           # (Optional) If the RDS should be enabled. Defaults to false<br/>  name: "rds\_instance\_id"                  # (Optional) Name of the RDS instance or cluster. Required if enabled is true<br/>  secret\_name: "secret\_path"               # (Optional) Name of the AWS Secrets Manager secret. Required if enabled is true<br/>  cluster: false                           # (Optional) If the RDS is an Aurora RDS Cluster. Defaults to false<br/>  from\_secret: false                       # (Optional) Read all connection details from secret. Defaults to false<br/>  server\_name: "logical\_name"              # (Optional) Override server logical name | `any` | `{}` | no |
+| <a name="input_roles"></a> [roles](#input\_roles) | roles:<br/>  <role\_ref>:<br/>    name: "role\_name"                      # (Required) Name of the role<br/>    db\_ref: "db\_reference"                 # (Optional) Reference to the database this role is associated with. Defaults to the default dbname of server<br/>    database\_name: "db\_name"               # (Optional) Name of the database this role is associated with. Defaults to the default dbname of server<br/>    table\_name: "table\_name"               # (Optional) Name of the table this role is associated with. Defaults to `*`<br/>    grant\_option: false                    # (Optional) If the role has grant option. Defaults to false<br/>    grants:                                # (Optional) Grants for the role. Defaults to ALL PRIVILEGES<br/>      - "SELECT" | `any` | `{}` | no |
+| <a name="input_rotate_immediately"></a> [rotate\_immediately](#input\_rotate\_immediately) | Rotate the password immediately # (Optional) Defaults to false | `bool` | `false` | no |
+| <a name="input_rotation_duration"></a> [rotation\_duration](#input\_rotation\_duration) | Duration of the lambda function to rotate the password # (Optional) Defaults to 1h | `string` | `"1h"` | no |
+| <a name="input_rotation_lambda_name"></a> [rotation\_lambda\_name](#input\_rotation\_lambda\_name) | Name of the lambda function to rotate the password # (Optional) Defaults to empty | `string` | `""` | no |
+| <a name="input_run_hoop"></a> [run\_hoop](#input\_run\_hoop) | Run hoop with agent, be careful with this option, it will run the HOOP command in output in a null\_resource # (Optional) Defaults to false | `bool` | `false` | no |
+| <a name="input_secrets_kms_key_id"></a> [secrets\_kms\_key\_id](#input\_secrets\_kms\_key\_id) | (optional) KMS Key ID to use to encrypt data in this secret, can be ARN or KMS Alias # (Optional) Defaults to null | `string` | `null` | no |
 | <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke ID Number, must be a 3 digit number | `string` | `"001"` | no |
-| <a name="input_users"></a> [users](#input\_users) | Users and user attributes - see docs for example | `any` | `{}` | no |
+| <a name="input_users"></a> [users](#input\_users) | users:<br/>  <user\_ref>:<br/>    name: "user\_name"                      # (Required) Name of the user<br/>    grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly<br/>    db\_ref: "db\_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server<br/>    database\_id: "db\_id"                   # (Optional) Direct ID of the database this user is associated with<br/>    default\_language: "English"            # (Optional) Default language for the user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password on first login. Defaults to false | `any` | `{}` | no |
 
 ## Outputs
 

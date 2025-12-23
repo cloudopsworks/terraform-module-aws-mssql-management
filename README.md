@@ -10,12 +10,12 @@
 
 [![cloudopsworks][logo]](https://cloudops.works/)
 
-# Terraform Module for AWS MySQL Management
+# Terraform Module for AWS MSSQL Management
 
 
 
 
-A comprehensive Terraform module for managing AWS MySQL databases, users, roles, and permissions. This module provides automated MySQL user and database management with integrated AWS Secrets Manager support, password rotation capabilities, and optional Hoop.dev integration for secure database access.
+A comprehensive Terraform module for managing AWS MSSQL (Microsoft SQL Server) databases, users, roles, and permissions. This module provides automated MSSQL user and database management with integrated AWS Secrets Manager support, password rotation capabilities, and optional Hoop.dev integration for secure database access.
 
 
 ---
@@ -50,9 +50,9 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 
 ## Introduction
 
-This Terraform module simplifies AWS MySQL database management by providing a declarative approach to:
+This Terraform module simplifies AWS MSSQL database management by providing a declarative approach to:
 
-- **Database Management**: Create and configure MySQL databases with custom character sets and collations
+- **Database Management**: Create and configure MSSQL databases with custom collations
 - **User Management**: Automated user creation with different permission levels (owner, readwrite, readonly)
 - **Role Management**: Flexible role-based access control with granular permissions
 - **Security Integration**: AWS Secrets Manager integration for secure credential storage
@@ -66,15 +66,19 @@ The module supports both RDS instances and Aurora clusters, with optional direct
 
 
 **IMPORTANT:** The `master` branch is used in `source` just as an example. In your code, do not pin to `master` because there may be breaking changes between releases.
-Instead pin to the release tag (e.g. `?ref=vX.Y.Z`) of one of our [latest releases](https://github.com/cloudopsworks/terraform-module-aws-mysql-management/releases).
+Instead pin to the release tag (e.g. `?ref=vX.Y.Z`) of one of our [latest releases](https://github.com/cloudopsworks/terraform-module-aws-mssql-management/releases).
 
 
-## Basic Usage
+## Terragrunt Usage
+
+To use this module with Terragrunt, define your `terragrunt.hcl` as follows:
 
 ```hcl
-module "mysql_management" {
-  source = "cloudopsworks/terraform-module-aws-mysql-management"
-  
+terraform {
+  source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.0.0"
+}
+
+inputs = {
   # Organization configuration
   org = {
     organization_name = "mycompany"
@@ -86,275 +90,200 @@ module "mysql_management" {
   # Database configuration
   databases = {
     app_db = {
-      name                  = "application_db"
-      default_character_set = "utf8mb4"
-      default_collation    = "utf8mb4_unicode_ci"
+      name              = "application_db"
+      default_collation = "SQL_Latin1_General_CP1_CI_AS"
     }
   }
   
   # User configuration
   users = {
     app_user = {
-      name  = "app_user"
-      grant = "readwrite"
+      name   = "app_user"
+      grant  = "readwrite"
       db_ref = "app_db"
     }
-    admin_user = {
-      name  = "admin_user"
-      grant = "owner"
-    }
-  }
-  
-  # RDS configuration
-  rds = {
-    enabled     = true
-    name        = "my-rds-instance"
-    secret_name = "rds/mysql/credentials"
-    cluster     = false
   }
 }
 ```
 
-## Configuration Options
+## Configuration Variables Documentation
 
-### Organization Configuration
-The `org` variable defines the organizational context for resource tagging and naming:
+### Users (`users` variable)
+| Field | Type | Required/Optional | Description |
+|-------|------|-------------------|-------------|
+| `name` | `string` | **Required** | Name of the user |
+| `grant` | `string` | **Required** | Grant type: `owner`, `readwrite`, `readonly` |
+| `db_ref` | `string` | Optional | Reference to the database this user is associated with |
+| `database_id` | `string` | Optional | Direct ID of the database |
+| `default_language` | `string` | Optional | Default language for the user |
+| `check_password_expiration` | `bool` | Optional | Check password expiration (default: `false`) |
+| `check_password_policy` | `bool` | Optional | Check password policy (default: `false`) |
+| `must_change_password` | `bool` | Optional | Must change password on first login (default: `false`) |
 
-```hcl
-org = {
-  organization_name = "mycompany"      # Company/organization name
-  organization_unit = "engineering"    # Department or unit
-  environment_type  = "production"     # Environment type
-  environment_name  = "prod"           # Environment name
-}
+#### Full YAML Documentation
+```yaml
+users:
+  <user_ref>:
+    name: "user_name"                      # (Required) Name of the user
+    grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly
+    db_ref: "db_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server
+    database_id: "db_id"                   # (Optional) Direct ID of the database this user is associated with
+    default_language: "English"            # (Optional) Default language for the user
+    check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
+    check_password_policy: false           # (Optional) Check password policy. Defaults to false
+    must_change_password: false            # (Optional) Must change password on first login. Defaults to false
 ```
 
-### Database Configuration
-Define databases using the `databases` variable:
+### Databases (`databases` variable)
+| Field | Type | Required/Optional | Description |
+|-------|------|-------------------|-------------|
+| `name` | `string` | **Required** | Name of the database |
+| `create` | `bool` | Optional | Whether to create the database (default: `true`) |
+| `create_owner` | `bool` | Optional | If the database should be created with an owner (default: `false`) |
+| `owner` | `string` | Optional | Owner of the database, required if `create_owner` is false |
+| `default_collation` | `string` | Optional | Collation of the database |
+| `default_language` | `string` | Optional | Default language for the owner user |
+| `check_password_expiration` | `bool` | Optional | Check password expiration for owner (default: `false`) |
+| `check_password_policy` | `bool` | Optional | Check password policy for owner (default: `false`) |
+| `must_change_password` | `bool` | Optional | Must change password for owner (default: `false`) |
 
-```hcl
-databases = {
-  primary_db = {
-    name                  = "primary_database"
-    create_owner         = false
-    owner                = "db_admin"
-    default_character_set = "utf8mb4"
-    default_collation    = "utf8mb4_general_ci"
-  }
-  analytics_db = {
-    name = "analytics"
-    # Uses defaults: utf8mb4 charset, utf8mb4_general_ci collation
-  }
-}
-```
-
-### User Management
-Configure users with different permission levels:
-
-```hcl
-users = {
-  # Application user with read-write access
-  app_user = {
-    name         = "application_user"
-    grant        = "readwrite"
-    db_ref       = "primary_db"
-  }
-  
-  # Read-only analytics user
-  analytics_user = {
-    name         = "analytics_reader"
-    grant        = "readonly"
-    database_name = "analytics"  # Direct database name instead of db_ref
-  }
-  
-  # Database owner with full privileges
-  db_owner = {
-    name  = "database_owner"
-    grant = "owner"
-  }
-}
-```
-
-### Role-Based Access Control
-Define custom roles with specific permissions:
-
-```hcl
-roles = {
-  backup_role = {
-    name         = "backup_operator"
-    db_ref       = "primary_db"
-    table_name   = "*"
-    grant_option = false
-    grants       = ["SELECT", "LOCK TABLES", "SHOW VIEW"]
-  }
-  
-  migration_role = {
-    name         = "migration_user"
-    database_name = "primary_database"
-    grants       = ["CREATE", "DROP", "ALTER", "INDEX"]
-    grant_option = true
-  }
-}
-```
-
-### RDS Integration
-Configure RDS instance or Aurora cluster integration:
-
-```hcl
-# For RDS Instance
-rds = {
-  enabled     = true
-  name        = "my-mysql-instance"
-  secret_name = "rds/mysql/master"
-  cluster     = false
-}
-
-# For Aurora Cluster
-rds = {
-  enabled     = true
-  name        = "my-aurora-cluster"
-  secret_name = "rds/aurora/master"
-  cluster     = true
-}
-```
-
-### Hoop.dev Integration
-Enable secure database access through Hoop.dev:
-
-```hcl
-hoop = {
-  enabled         = true
-  agent          = "mysql-agent"
-  connection_name = "mysql-production"
-  username       = "hoop_admin"
-  db_name        = "mysql"
-  engine         = "mysql"
-  server_name    = "mysql-prod-cluster"
-  cluster        = true
-  tags           = [
-    "environment=production",
-    "team=platform"
-  ]
-}
-```
-
-### Password Rotation
-Configure automatic password rotation:
-
-```hcl
-password_rotation_period = 30  # Rotate every 30 days
-rotation_lambda_name    = "mysql-password-rotator"
-rotation_duration       = "2h"
-rotate_immediately      = false
-```
-
-### Detailed Configuration Reference
-
-The following inputs are maps/objects used to declaratively manage MySQL. Field-level details are derived from variables-mysql.tf and inline comments.
-
-- Databases (databases: map):
-  - name (string, required): Database name
-  - create_owner (bool, default: false): Create the database with an owner account
-  - owner (string, optional): Owner username if create_owner is false
-  - default_character_set (string, default: utf8mb4): MySQL character set
-  - default_collation (string, default: utf8mb4_general_ci): MySQL collation
-
-- Users (users: map):
-  - name (string, required): Username
-  - grant (string, required): one of owner | readwrite | readonly
-  - db_ref (string, optional): Reference to a database defined in databases
-  - database_name (string, optional): Direct database name (alternative to db_ref)
-
-- Roles (roles: map):
-  - name (string, required): Role/user name for grants
-  - db_ref (string, optional): Reference to a database defined in databases
-  - database_name (string, optional): Direct database name (alternative to db_ref)
-  - table_name (string, default: "*"): Table name to scope grants
-  - grants (list(string), default: ["ALL PRIVILEGES"]): Privileges to grant
-  - grant_option (bool, optional): Allow granting privileges to others
-
-- RDS (rds: object):
-  - enabled (bool, default: false): Whether to use AWS RDS/Aurora
-  - name (string, required if enabled): DB instance or cluster name
-  - secret_name (string, required if enabled): Secrets Manager secret holding master credentials
-  - cluster (bool, default: false): If the target is an Aurora cluster
-  - from_secret (bool, optional): If true, read all connection details from secret (provider-supported)
-  - server_name (string, optional): Override server logical name (used in outputs)
-
-- Direct connection (direct: object): Used when rds.enabled=false and not using Hoop
-  - server_name (string, required): Logical name for the server
-  - host (string, required)
-  - port (number, required)
-  - username (string, required)
-  - password (string, required)
-  - engine (string, default: mysql)
-  - db_name (string, required)
-
-- Hoop.dev (hoop: object): Enable local/secured connection via Hoop
-  - enabled (bool, default: false)
-  - agent (string, required if enabled): Hoop agent name
-  - connection_name (string, optional): Hoop connection name to start tunnel
-  - server_name (string, required if enabled): Logical DB server name
-  - db_name (string, required if enabled)
-  - engine (string, default: mysql)
-  - cluster (bool, default: false)
-  - port (number, default: 3306): Local tunnel port used by provider
-  - username (string, optional): Local tunnel username if needed
-  - password (string, optional): Local tunnel password if needed
-  - tags (list(string), default: []): Formatted as tag=value for Hoop resource
-  - run_hoop (bool, default: false via separate variable): If true, execute hoop connect via null_resource
-
-- Rotation & Secrets:
-  - password_rotation_period (number, default: 90): Days between rotations
-  - rotation_lambda_name (string, default: ""): Lambda name used by Secrets Manager rotation
-  - rotation_duration (string, default: "1h"): Max rotation duration
-  - rotate_immediately (bool, default: false)
-  - force_reset (bool, default: false)
-  - secrets_kms_key_id (string, default: null): KMS key/alias for Secrets Manager
-
-Example inputs.yaml (for Terragrunt):
+#### Full YAML Documentation
 ```yaml
 databases:
-  app:
-    name: app_db
-    default_character_set: utf8mb4
-users:
-  app:
-    name: app_user
-    grant: readwrite
-    db_ref: app
-rds:
-  enabled: true
-  name: my-mysql
-  secret_name: dev/mysql
-  cluster: false
-password_rotation_period: 90
-rotation_lambda_name: ""
-rotation_duration: "1h"
-rotate_immediately: false
-secrets_kms_key_id: null
-hoop:
-  enabled: false
+  <db_ref>:
+    name: "db_name"                        # (Required) Name of the database
+    create: true                           # (Optional) Whether to create the database. Defaults to true
+    create_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false
+    owner: "owner_name"                    # (Optional) Owner of the database, required if create_owner is false
+    default_collation: "SQL_Latin1_General_CP1_CI_AS" # (Optional) Collation of the database. Defaults to server default
+    default_language: "English"            # (Optional) Default language for the owner user
+    check_password_expiration: false       # (Optional) Check password expiration for owner. Defaults to false
+    check_password_policy: false           # (Optional) Check password policy for owner. Defaults to false
+    must_change_password: false            # (Optional) Must change password for owner on first login. Defaults to false
 ```
+
+### Roles (`roles` variable)
+| Field | Type | Required/Optional | Description |
+|-------|------|-------------------|-------------|
+| `name` | `string` | **Required** | Name of the role |
+| `db_ref` | `string` | Optional | Reference to the database |
+| `database_name` | `string` | Optional | Name of the database |
+| `table_name` | `string` | Optional | Name of the table (default: `*`) |
+| `grant_option` | `bool` | Optional | If the role has grant option (default: `false`) |
+| `grants` | `list(string)` | Optional | Grants for the role (default: `ALL PRIVILEGES`) |
+
+#### Full YAML Documentation
+```yaml
+roles:
+  <role_ref>:
+    name: "role_name"                      # (Required) Name of the role
+    db_ref: "db_reference"                 # (Optional) Reference to the database this role is associated with. Defaults to the default dbname of server
+    database_name: "db_name"               # (Optional) Name of the database this role is associated with. Defaults to the default dbname of server
+    table_name: "table_name"               # (Optional) Name of the table this role is associated with. Defaults to `*`
+    grant_option: false                    # (Optional) If the role has grant option. Defaults to false
+    grants:                                # (Optional) Grants for the role. Defaults to ALL PRIVILEGES
+      - "SELECT"
+```
+
+### RDS Integration (`rds` variable)
+| Field | Type | Required/Optional | Description |
+|-------|------|-------------------|-------------|
+| `enabled` | `bool` | Optional | Enable RDS integration (default: `false`) |
+| `name` | `string` | **Required if enabled** | RDS instance or cluster name |
+| `secret_name` | `string` | **Required if enabled** | Secrets Manager secret name |
+| `cluster` | `bool` | Optional | If it's an Aurora cluster (default: `false`) |
+| `from_secret` | `bool` | Optional | Read all connection details from secret (default: `false`) |
+| `server_name` | `string` | Optional | Override logical server name |
+
+#### Full YAML Documentation
+```yaml
+rds:
+  enabled: false                           # (Optional) If the RDS should be enabled. Defaults to false
+  name: "rds_instance_id"                  # (Optional) Name of the RDS instance or cluster. Required if enabled is true
+  secret_name: "secret_path"               # (Optional) Name of the AWS Secrets Manager secret. Required if enabled is true
+  cluster: false                           # (Optional) If the RDS is an Aurora RDS Cluster. Defaults to false
+  from_secret: false                       # (Optional) Read all connection details from secret. Defaults to false
+  server_name: "logical_name"              # (Optional) Override server logical name
+```
+
+### Hoop.dev Integration (`hoop` variable)
+| Field | Type | Required/Optional | Description |
+|-------|------|-------------------|-------------|
+| `enabled` | `bool` | Optional | Enable Hoop integration (default: `false`) |
+| `agent` | `string` | **Required if enabled** | Hoop agent name |
+| `connection_name` | `string` | Optional | Hoop connection name |
+| `db_name` | `string` | Optional | Database name for Hoop |
+| `engine` | `string` | Optional | Engine for Hoop (`sqlserver`) |
+| `server_name` | `string` | Optional | Logical server name |
+| `cluster` | `bool` | Optional | If it's a cluster |
+| `port` | `number` | Optional | Local tunnel port (default: `1433`) |
+| `tags` | `list(string)` | Optional | Tags for Hoop resource (`tag=value`) |
+
+#### Full YAML Documentation
+```yaml
+hoop:
+  enabled: false                           # (Optional) If the hoop should be enabled. Defaults to false
+  agent: "agent_name"                      # (Optional) Name of the hoop agent. Required if enabled is true
+  connection_name: "conn_name"             # (Optional) Name of the hoop connection.
+  db_name: "sqlserver"                     # (Optional) Database name for hoop connection
+  engine: "sqlserver"                     # (Optional) Engine for hoop connection
+  server_name: "server_name"               # (Optional) Logical server name
+  cluster: false                           # (Optional) If it's a cluster
+  port: 1433                               # (Optional) Port for local tunnel. Defaults to 1433
+  username: "user"                         # (Optional) Username for local tunnel
+  password: "pass"                         # (Optional) Password for local tunnel
+  tags:                                    # (Optional) Tags to apply to the hoop. format <tagname>=<tagvalue>
+    - "tag=value"
+```
+
+### Direct Connection (`direct` variable)
+| Field | Type | Required/Optional | Description |
+|-------|------|-------------------|-------------|
+| `server_name` | `string` | **Required** | Logical server name |
+| `host` | `string` | **Required** | Database host address |
+| `port` | `number` | **Required** | Database port |
+| `jump_host` | `string` | Optional | Jump host address |
+| `jump_port` | `number` | Optional | Jump host port |
+| `username` | `string` | Optional | Database username |
+| `password` | `string` | Optional | Database password |
+| `secret_name` | `string` | Optional | Secrets Manager secret name |
+| `engine` | `string` | Optional | Database engine (default: `sqlserver`) |
+| `db_name` | `string` | Optional | Default database name |
+
+#### Full YAML Documentation
+```yaml
+direct:
+  server_name: "server"                    # (Required) Logical server name
+  host: "host_address"                     # (Required) Database host address
+  port: 1433                               # (Required) Database port
+  jump_host: "jump_host"                   # (Optional) Jump host address
+  jump_port: 22                            # (Optional) Jump host port
+  username: "admin"                        # (Optional) Database username
+  password: "password"                     # (Optional) Database password
+  secret_name: "secret_path"               # (Optional) AWS Secrets Manager secret name for credentials
+  engine: "sqlserver"                     # (Optional) Database engine. Defaults to sqlserver
+  db_name: "master"                        # (Optional) Default database name
+```
+
+### Other Variables
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `password_rotation_period` | `number` | `90` | Password rotation period in days |
+| `run_hoop` | `bool` | `false` | Run hoop with agent via null_resource |
+| `secrets_kms_key_id` | `string` | `null` | KMS Key ID for Secrets Manager encryption |
+| `rotation_lambda_name` | `string` | `""` | Name of the rotation lambda function |
+| `rotation_duration` | `string` | `"1h"` | Rotation lambda duration |
+| `rotate_immediately` | `bool` | `false` | Rotate password immediately |
+| `force_reset` | `bool` | `false` | Force Reset the password |
 
 ## Quick Start
 
 ## Quick Start with Terragrunt
 
-### 1. Create Directory Structure
-```bash
-mkdir -p mysql-management/dev
-cd mysql-management/dev
-```
-
-### 2. Create `terragrunt.hcl`
+### 1. Create `terragrunt.hcl`
 ```hcl
 terraform {
-  source = "git::https://github.com/cloudopsworks/terraform-module-aws-mysql-management.git?ref=v1.0.0"
-}
-
-include {
-  path = find_in_parent_folders()
+  source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.0.0"
 }
 
 inputs = {
@@ -373,133 +302,34 @@ inputs = {
 
   users = {
     test_user = {
-      name  = "test_user"
-      grant = "readwrite"
+      name   = "test_user"
+      grant  = "readwrite"
       db_ref = "test_db"
     }
   }
 
   rds = {
     enabled     = true
-    name        = "test-mysql-instance"
-    secret_name = "dev/test/mysql"
+    name        = "test-mssql-instance"
+    secret_name = "dev/test/mssql"
   }
 }
 ```
 
-### 3. Create Parent `terragrunt.hcl`
-```hcl
-# ../terragrunt.hcl
-remote_state {
-  backend = "s3"
-  config = {
-    bucket         = "your-terraform-state-bucket"
-    key            = "mysql-management/${path_relative_to_include()}/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "terraform-locks"
-  }
-}
-```
-
-### 4. Deploy
+### 2. Deploy
 ```bash
-# Initialize and plan
 terragrunt init
 terragrunt plan
-
-# Apply changes
 terragrunt apply
 ```
-
-### 5. Using Boilerplate Templates
-The module includes boilerplate templates in the `.boilerplate` folder for faster setup:
-
-```bash
-# Copy boilerplate
-cp .boilerplate/terragrunt.hcl ./terragrunt.hcl
-cp .boilerplate/inputs.yaml ./inputs.yaml
-cp .boilerplate/local-tags.json ./local-tags.json
-```
-
-Note: The provided .boilerplate/terragrunt.hcl expects parent-level files (e.g., env-inputs.yaml and global-tags.json) in a hub/spoke layout. If you don't have those, you can:
-- Provide the expected files in parent folders, or
-- Set org inline in terragrunt.hcl (see commented example inside the template), or
-- Pass org via inputs.yaml and reference it from terragrunt.hcl.
-
-Edit `inputs.yaml`:
-```yaml
-# MySQL Configuration
-databases:
-  my_app_db:
-    name: my_application
-    default_character_set: utf8mb4
-
-users:
-  app_user:
-    name: my_app_user
-    grant: readwrite
-    db_ref: my_app_db
-
-rds:
-  enabled: true
-  name: my-rds-instance
-  secret_name: dev/my-app/mysql
-```
-
-Edit `local-tags.json`:
-```json
-{
-  "Project": "my-project",
-  "Owner": "platform-team",
-  "CostCenter": "engineering"
-}
-```
-
-## Minimal Example
-For the simplest possible setup:
-
-```hcl
-module "mysql" {
-  source = "cloudopsworks/terraform-module-aws-mysql-management"
-  
-  org = {
-    organization_name = "myorg"
-    organization_unit = "dev"
-    environment_type  = "development"
-    environment_name  = "dev"
-  }
-
-  # Create a single database with a readwrite user
-  databases = {
-    app = { name = "app_db" }
-  }
-  users = {
-    app = { name = "app_user", grant = "readwrite", db_ref = "app" }
-  }
-  rds = {
-    enabled = true
-    name = "my-mysql"
-    secret_name = "dev/mysql"
-  }
-}
-```
-
-This creates:
-- One MySQL database named `app_db`
-- One user `app_user` with read-write permissions
-- AWS Secrets Manager integration
-- Proper tagging based on organization context
 
 
 ## Examples
 
-## Example 1: Simple Application Database
+## Example: Standard MSSQL with RDS
 
 ```hcl
-module "app_mysql" {
-  source = "cloudopsworks/terraform-module-aws-mysql-management"
-  
+inputs = {
   org = {
     organization_name = "acme-corp"
     organization_unit = "backend"
@@ -515,217 +345,21 @@ module "app_mysql" {
   
   users = {
     app_user = {
-      name  = "ecommerce_api"
-      grant = "readwrite"
+      name   = "ecommerce_api"
+      grant  = "readwrite"
       db_ref = "app_db"
     }
     readonly_user = {
-      name  = "reporting_user"
-      grant = "readonly"
+      name   = "reporting_user"
+      grant  = "readonly"
       db_ref = "app_db"
     }
   }
   
   rds = {
     enabled     = true
-    name        = "ecommerce-mysql"
-    secret_name = "prod/ecommerce/mysql"
-  }
-}
-```
-
-## Example 2: Multi-Database with Custom Roles
-
-```hcl
-module "complex_mysql" {
-  source = "cloudopsworks/terraform-module-aws-mysql-management"
-  
-  org = {
-    organization_name = "enterprise"
-    organization_unit = "data-platform"
-    environment_type  = "staging"
-    environment_name  = "stg"
-  }
-  
-  databases = {
-    primary_db = {
-      name                  = "primary"
-      default_character_set = "utf8mb4"
-      default_collation    = "utf8mb4_unicode_ci"
-    }
-    analytics_db = {
-      name = "analytics"
-    }
-    logs_db = {
-      name = "application_logs"
-    }
-  }
-  
-  users = {
-    api_user = {
-      name   = "api_service"
-      grant  = "readwrite"
-      db_ref = "primary_db"
-    }
-    analytics_user = {
-      name   = "analytics_service"
-      grant  = "readonly"
-      db_ref = "analytics_db"
-    }
-  }
-  
-  roles = {
-    etl_role = {
-      name       = "etl_processor"
-      db_ref     = "analytics_db"
-      grants     = ["SELECT", "INSERT", "UPDATE", "DELETE"]
-    }
-    backup_role = {
-      name       = "backup_operator"
-      table_name = "*"
-      grants     = ["SELECT", "LOCK TABLES"]
-    }
-  }
-  
-  rds = {
-    enabled     = true
-    name        = "enterprise-aurora"
-    secret_name = "staging/enterprise/aurora"
-    cluster     = true
-  }
-  
-  password_rotation_period = 90
-  rotation_lambda_name    = "mysql-rotator-staging"
-}
-```
-
-## Example 3: Hoop.dev Integration
-
-```hcl
-module "secure_mysql" {
-  source = "cloudopsworks/terraform-module-aws-mysql-management"
-  
-  org = {
-    organization_name = "fintech"
-    organization_unit = "security"
-    environment_type  = "production"
-    environment_name  = "prod"
-  }
-  
-  databases = {
-    transactions_db = {
-      name                  = "transactions"
-      default_character_set = "utf8mb4"
-      default_collation    = "utf8mb4_bin"
-    }
-  }
-  
-  users = {
-    app_user = {
-      name   = "transaction_api"
-      grant  = "readwrite"
-      db_ref = "transactions_db"
-    }
-  }
-  
-  rds = {
-    enabled     = true
-    name        = "fintech-mysql-cluster"
-    secret_name = "prod/fintech/mysql-cluster"
-    cluster     = true
-  }
-  
-  hoop = {
-    enabled         = true
-    agent          = "fintech-mysql-agent"
-    connection_name = "mysql-transactions-prod"
-    username       = "hoop_admin"
-    db_name        = "transactions"
-    engine         = "mysql"
-    server_name    = "fintech-mysql-cluster"
-    cluster        = true
-    tags = [
-      "environment=production",
-      "compliance=pci-dss",
-      "team=security"
-    ]
-  }
-  
-  run_hoop                = false
-  password_rotation_period = 30
-  secrets_kms_key_id      = "alias/fintech-secrets"
-}
-```
-
-## Example 4: Hub-Spoke Architecture
-
-```hcl
-# Hub configuration
-module "mysql_hub" {
-  source = "cloudopsworks/terraform-module-aws-mysql-management"
-  
-  is_hub    = true
-  spoke_def = "000"  # Hub designation
-  
-  org = {
-    organization_name = "enterprise"
-    organization_unit = "shared-services"
-    environment_type  = "production"
-    environment_name  = "shared"
-  }
-  
-  databases = {
-    shared_config = {
-      name = "shared_configuration"
-    }
-  }
-  
-  users = {
-    config_admin = {
-      name  = "shared_config_admin"
-      grant = "owner"
-    }
-  }
-  
-  rds = {
-    enabled     = true
-    name        = "shared-mysql-hub"
-    secret_name = "hub/shared/mysql"
-  }
-}
-
-# Spoke configuration
-module "mysql_spoke" {
-  source = "cloudopsworks/terraform-module-aws-mysql-management"
-  
-  is_hub    = false
-  spoke_def = "001"  # First spoke
-  
-  org = {
-    organization_name = "enterprise"
-    organization_unit = "application"
-    environment_type  = "production"
-    environment_name  = "app-prod"
-  }
-  
-  databases = {
-    app_data = {
-      name = "application_data"
-    }
-  }
-  
-  users = {
-    app_service = {
-      name   = "application_service"
-      grant  = "readwrite"
-      db_ref = "app_data"
-    }
-  }
-  
-  rds = {
-    enabled     = true
-    name        = "app-mysql-spoke-001"
-    secret_name = "spoke-001/app/mysql"
+    name        = "ecommerce-mssql"
+    secret_name = "prod/ecommerce/mssql"
   }
 }
 ```
@@ -739,6 +373,9 @@ Available targets:
   help                                Help screen
   help/all                            Display help for all targets
   help/short                          This help short screen
+  init/aws                            Initialize the project for a specific cloud provider: AWS
+  init/azurerm                        Initialize the project for a specific cloud provider: Azure RM
+  init/gcp                            Initialize the project for a specific cloud provider: GCP
   lint                                Lint terraform/opentofu code
   tag                                 Tag the current version
 
@@ -748,8 +385,8 @@ Available targets:
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
-| <a name="requirement_mysql"></a> [mysql](#requirement\_mysql) | ~> 3.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.4 |
+| <a name="requirement_mssql"></a> [mssql](#requirement\_mssql) | ~> 0.6 |
 | <a name="requirement_null"></a> [null](#requirement\_null) | ~> 3.1 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.7 |
 | <a name="requirement_time"></a> [time](#requirement\_time) | ~> 0.13 |
@@ -758,8 +395,8 @@ Available targets:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.8.0 |
-| <a name="provider_mysql"></a> [mysql](#provider\_mysql) | 3.0.84 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.27.0 |
+| <a name="provider_mssql"></a> [mssql](#provider\_mssql) | 0.6.0 |
 | <a name="provider_null"></a> [null](#provider\_null) | 3.2.4 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.7.2 |
 | <a name="provider_time"></a> [time](#provider\_time) | 0.13.1 |
@@ -782,15 +419,15 @@ Available targets:
 | [aws_secretsmanager_secret_version.owner_rotated](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.user](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.user_rotated](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
-| [mysql_database.this](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/database) | resource |
-| [mysql_grant.owner](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_grant.role](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_grant.user_all_db](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_grant.user_ro_tab_def_priv](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_grant.user_tab_def_priv](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/grant) | resource |
-| [mysql_role.role](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/role) | resource |
-| [mysql_user.owner](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/user) | resource |
-| [mysql_user.user](https://registry.terraform.io/providers/petoju/mysql/latest/docs/resources/user) | resource |
+| [mssql_database.this](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database) | resource |
+| [mssql_database_role_member.dbowner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database_role_member) | resource |
+| [mssql_database_role_member.user_all_db](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database_role_member) | resource |
+| [mssql_schema_permission.user_ro_tab_def_priv](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/schema_permission) | resource |
+| [mssql_schema_permission.user_tab_def_priv](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/schema_permission) | resource |
+| [mssql_sql_login.owner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_login) | resource |
+| [mssql_sql_login.user](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_login) | resource |
+| [mssql_sql_user.owner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_user) | resource |
+| [mssql_sql_user.user](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_user) | resource |
 | [null_resource.hoop_connection_owners](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.hoop_connection_users](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [random_password.owner](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
@@ -813,28 +450,32 @@ Available targets:
 | [aws_secretsmanager_secret_versions.user_rotated](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secret_versions) | data source |
 | [aws_secretsmanager_secrets.owner](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secrets) | data source |
 | [aws_secretsmanager_secrets.user](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secrets) | data source |
+| [mssql_database.this](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/database) | data source |
+| [mssql_database_role.db_owner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/database_role) | data source |
+| [mssql_schemas.all_schemas](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/schemas) | data source |
+| [mssql_server_role.public](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/server_role) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_databases"></a> [databases](#input\_databases) | Databases and database attributes - see docs for example | `any` | `{}` | no |
-| <a name="input_direct"></a> [direct](#input\_direct) | Direct connection attributes - see docs for example | `any` | `{}` | no |
+| <a name="input_databases"></a> [databases](#input\_databases) | databases:<br/>  <db\_ref>:<br/>    name: "db\_name"                        # (Required) Name of the database<br/>    create: true                           # (Optional) Whether to create the database. Defaults to true<br/>    create\_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false<br/>    owner: "owner\_name"                    # (Optional) Owner of the database, required if create\_owner is false<br/>    default\_collation: "SQL\_Latin1\_General\_CP1\_CI\_AS" # (Optional) Collation of the database. Defaults to server default<br/>    default\_language: "English"            # (Optional) Default language for the owner user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration for owner. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy for owner. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password for owner on first login. Defaults to false | `any` | `{}` | no |
+| <a name="input_direct"></a> [direct](#input\_direct) | direct:<br/>  server\_name: "server"                    # (Required) Logical server name<br/>  host: "host\_address"                     # (Required) Database host address<br/>  port: 1433                               # (Required) Database port<br/>  jump\_host: "jump\_host"                   # (Optional) Jump host address<br/>  jump\_port: 22                            # (Optional) Jump host port<br/>  username: "admin"                        # (Optional) Database username<br/>  password: "password"                     # (Optional) Database password<br/>  secret\_name: "secret\_path"               # (Optional) AWS Secrets Manager secret name for credentials<br/>  engine: "sqlserver"                     # (Optional) Database engine. Defaults to sqlserver<br/>  db\_name: "master"                        # (Optional) Default database name | `any` | `{}` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
-| <a name="input_force_reset"></a> [force\_reset](#input\_force\_reset) | Force Reset the password | `bool` | `false` | no |
-| <a name="input_hoop"></a> [hoop](#input\_hoop) | Hoop attributes - see docs for example | `any` | `{}` | no |
+| <a name="input_force_reset"></a> [force\_reset](#input\_force\_reset) | Force Reset the password # (Optional) Defaults to false | `bool` | `false` | no |
+| <a name="input_hoop"></a> [hoop](#input\_hoop) | hoop:<br/>  enabled: false                           # (Optional) If the hoop should be enabled. Defaults to false<br/>  agent: "agent\_name"                      # (Optional) Name of the hoop agent. Required if enabled is true<br/>  connection\_name: "conn\_name"             # (Optional) Name of the hoop connection.<br/>  db\_name: "sqlserver"                     # (Optional) Database name for hoop connection<br/>  engine: "sqlserver"                     # (Optional) Engine for hoop connection<br/>  server\_name: "server\_name"               # (Optional) Logical server name<br/>  cluster: false                           # (Optional) If it's a cluster<br/>  port: 1433                               # (Optional) Port for local tunnel. Defaults to 1433<br/>  username: "user"                         # (Optional) Username for local tunnel<br/>  password: "pass"                         # (Optional) Password for local tunnel<br/>  tags:                                    # (Optional) Tags to apply to the hoop. format <tagname>=<tagvalue><br/>    - "tag=value" | `any` | `{}` | no |
 | <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Is this a hub or spoke configuration? | `bool` | `false` | no |
 | <a name="input_org"></a> [org](#input\_org) | Organization details | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
-| <a name="input_password_rotation_period"></a> [password\_rotation\_period](#input\_password\_rotation\_period) | Password rotation period in days | `number` | `90` | no |
-| <a name="input_rds"></a> [rds](#input\_rds) | RDS attributes - see docs for example | `any` | `{}` | no |
-| <a name="input_roles"></a> [roles](#input\_roles) | Roles and role attributes - see docs for example | `any` | `{}` | no |
-| <a name="input_rotate_immediately"></a> [rotate\_immediately](#input\_rotate\_immediately) | Rotate the password immediately | `bool` | `false` | no |
-| <a name="input_rotation_duration"></a> [rotation\_duration](#input\_rotation\_duration) | Duration of the lambda function to rotate the password | `string` | `"1h"` | no |
-| <a name="input_rotation_lambda_name"></a> [rotation\_lambda\_name](#input\_rotation\_lambda\_name) | Name of the lambda function to rotate the password | `string` | `""` | no |
-| <a name="input_run_hoop"></a> [run\_hoop](#input\_run\_hoop) | Run hoop with agent, be careful with this option, it will run the HOOP command in output in a null\_resource | `bool` | `false` | no |
-| <a name="input_secrets_kms_key_id"></a> [secrets\_kms\_key\_id](#input\_secrets\_kms\_key\_id) | (optional) KMS Key ID to use to encrypt data in this secret, can be ARN or KMS Alias | `string` | `null` | no |
+| <a name="input_password_rotation_period"></a> [password\_rotation\_period](#input\_password\_rotation\_period) | Password rotation period in days # (Optional) Defaults to 90 | `number` | `90` | no |
+| <a name="input_rds"></a> [rds](#input\_rds) | rds:<br/>  enabled: false                           # (Optional) If the RDS should be enabled. Defaults to false<br/>  name: "rds\_instance\_id"                  # (Optional) Name of the RDS instance or cluster. Required if enabled is true<br/>  secret\_name: "secret\_path"               # (Optional) Name of the AWS Secrets Manager secret. Required if enabled is true<br/>  cluster: false                           # (Optional) If the RDS is an Aurora RDS Cluster. Defaults to false<br/>  from\_secret: false                       # (Optional) Read all connection details from secret. Defaults to false<br/>  server\_name: "logical\_name"              # (Optional) Override server logical name | `any` | `{}` | no |
+| <a name="input_roles"></a> [roles](#input\_roles) | roles:<br/>  <role\_ref>:<br/>    name: "role\_name"                      # (Required) Name of the role<br/>    db\_ref: "db\_reference"                 # (Optional) Reference to the database this role is associated with. Defaults to the default dbname of server<br/>    database\_name: "db\_name"               # (Optional) Name of the database this role is associated with. Defaults to the default dbname of server<br/>    table\_name: "table\_name"               # (Optional) Name of the table this role is associated with. Defaults to `*`<br/>    grant\_option: false                    # (Optional) If the role has grant option. Defaults to false<br/>    grants:                                # (Optional) Grants for the role. Defaults to ALL PRIVILEGES<br/>      - "SELECT" | `any` | `{}` | no |
+| <a name="input_rotate_immediately"></a> [rotate\_immediately](#input\_rotate\_immediately) | Rotate the password immediately # (Optional) Defaults to false | `bool` | `false` | no |
+| <a name="input_rotation_duration"></a> [rotation\_duration](#input\_rotation\_duration) | Duration of the lambda function to rotate the password # (Optional) Defaults to 1h | `string` | `"1h"` | no |
+| <a name="input_rotation_lambda_name"></a> [rotation\_lambda\_name](#input\_rotation\_lambda\_name) | Name of the lambda function to rotate the password # (Optional) Defaults to empty | `string` | `""` | no |
+| <a name="input_run_hoop"></a> [run\_hoop](#input\_run\_hoop) | Run hoop with agent, be careful with this option, it will run the HOOP command in output in a null\_resource # (Optional) Defaults to false | `bool` | `false` | no |
+| <a name="input_secrets_kms_key_id"></a> [secrets\_kms\_key\_id](#input\_secrets\_kms\_key\_id) | (optional) KMS Key ID to use to encrypt data in this secret, can be ARN or KMS Alias # (Optional) Defaults to null | `string` | `null` | no |
 | <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke ID Number, must be a 3 digit number | `string` | `"001"` | no |
-| <a name="input_users"></a> [users](#input\_users) | Users and user attributes - see docs for example | `any` | `{}` | no |
+| <a name="input_users"></a> [users](#input\_users) | users:<br/>  <user\_ref>:<br/>    name: "user\_name"                      # (Required) Name of the user<br/>    grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly<br/>    db\_ref: "db\_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server<br/>    database\_id: "db\_id"                   # (Optional) Direct ID of the database this user is associated with<br/>    default\_language: "English"            # (Optional) Default language for the user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password on first login. Defaults to false | `any` | `{}` | no |
 
 ## Outputs
 
@@ -851,7 +492,7 @@ Available targets:
 
 **Got a question?** We got answers. 
 
-File a GitHub [issue](https://github.com/cloudopsworks/terraform-module-aws-mysql-management/issues), send us an [email][email] or join our [Slack Community][slack].
+File a GitHub [issue](https://github.com/cloudopsworks/terraform-module-aws-mssql-management/issues), send us an [email][email] or join our [Slack Community][slack].
 
 [![README Commercial Support][readme_commercial_support_img]][readme_commercial_support_link]
 
@@ -868,7 +509,7 @@ File a GitHub [issue](https://github.com/cloudopsworks/terraform-module-aws-mysq
 
 ### Bug Reports & Feature Requests
 
-Please use the [issue tracker](https://github.com/cloudopsworks/terraform-module-aws-mysql-management/issues) to report any bugs or file feature requests.
+Please use the [issue tracker](https://github.com/cloudopsworks/terraform-module-aws-mssql-management/issues) to report any bugs or file feature requests.
 
 ### Developing
 
@@ -935,31 +576,31 @@ This project is maintained by [Cloud Ops Works LLC][website].
 [![Beacon][beacon]][website]
 
   [logo]: https://cloudops.works/logo-300x69.svg
-  [docs]: https://cowk.io/docs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=docs
-  [website]: https://cowk.io/homepage?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=website
-  [github]: https://cowk.io/github?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=github
-  [jobs]: https://cowk.io/jobs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=jobs
-  [hire]: https://cowk.io/hire?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=hire
-  [slack]: https://cowk.io/slack?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=slack
-  [linkedin]: https://cowk.io/linkedin?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=linkedin
-  [twitter]: https://cowk.io/twitter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=twitter
-  [testimonial]: https://cowk.io/leave-testimonial?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=testimonial
-  [office_hours]: https://cloudops.works/office-hours?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=office_hours
-  [newsletter]: https://cowk.io/newsletter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=newsletter
-  [email]: https://cowk.io/email?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=email
-  [commercial_support]: https://cowk.io/commercial-support?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=commercial_support
-  [we_love_open_source]: https://cowk.io/we-love-open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=we_love_open_source
-  [terraform_modules]: https://cowk.io/terraform-modules?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=terraform_modules
+  [docs]: https://cowk.io/docs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=docs
+  [website]: https://cowk.io/homepage?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=website
+  [github]: https://cowk.io/github?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=github
+  [jobs]: https://cowk.io/jobs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=jobs
+  [hire]: https://cowk.io/hire?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=hire
+  [slack]: https://cowk.io/slack?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=slack
+  [linkedin]: https://cowk.io/linkedin?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=linkedin
+  [twitter]: https://cowk.io/twitter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=twitter
+  [testimonial]: https://cowk.io/leave-testimonial?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=testimonial
+  [office_hours]: https://cloudops.works/office-hours?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=office_hours
+  [newsletter]: https://cowk.io/newsletter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=newsletter
+  [email]: https://cowk.io/email?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=email
+  [commercial_support]: https://cowk.io/commercial-support?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=commercial_support
+  [we_love_open_source]: https://cowk.io/we-love-open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=we_love_open_source
+  [terraform_modules]: https://cowk.io/terraform-modules?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=terraform_modules
   [readme_header_img]: https://cloudops.works/readme/header/img
-  [readme_header_link]: https://cloudops.works/readme/header/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=readme_header_link
+  [readme_header_link]: https://cloudops.works/readme/header/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=readme_header_link
   [readme_footer_img]: https://cloudops.works/readme/footer/img
-  [readme_footer_link]: https://cloudops.works/readme/footer/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=readme_footer_link
+  [readme_footer_link]: https://cloudops.works/readme/footer/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=readme_footer_link
   [readme_commercial_support_img]: https://cloudops.works/readme/commercial-support/img
-  [readme_commercial_support_link]: https://cloudops.works/readme/commercial-support/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mysql-management&utm_content=readme_commercial_support_link
-  [share_twitter]: https://twitter.com/intent/tweet/?text=Terraform+Module+for+AWS+MySQL+Management&url=https://github.com/cloudopsworks/terraform-module-aws-mysql-management
-  [share_linkedin]: https://www.linkedin.com/shareArticle?mini=true&title=Terraform+Module+for+AWS+MySQL+Management&url=https://github.com/cloudopsworks/terraform-module-aws-mysql-management
-  [share_reddit]: https://reddit.com/submit/?url=https://github.com/cloudopsworks/terraform-module-aws-mysql-management
-  [share_facebook]: https://facebook.com/sharer/sharer.php?u=https://github.com/cloudopsworks/terraform-module-aws-mysql-management
-  [share_googleplus]: https://plus.google.com/share?url=https://github.com/cloudopsworks/terraform-module-aws-mysql-management
-  [share_email]: mailto:?subject=Terraform+Module+for+AWS+MySQL+Management&body=https://github.com/cloudopsworks/terraform-module-aws-mysql-management
-  [beacon]: https://ga-beacon.cloudops.works/G-7XWMFVFXZT/cloudopsworks/terraform-module-aws-mysql-management?pixel&cs=github&cm=readme&an=terraform-module-aws-mysql-management
+  [readme_commercial_support_link]: https://cloudops.works/readme/commercial-support/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-mssql-management&utm_content=readme_commercial_support_link
+  [share_twitter]: https://twitter.com/intent/tweet/?text=Terraform+Module+for+AWS+MSSQL+Management&url=https://github.com/cloudopsworks/terraform-module-aws-mssql-management
+  [share_linkedin]: https://www.linkedin.com/shareArticle?mini=true&title=Terraform+Module+for+AWS+MSSQL+Management&url=https://github.com/cloudopsworks/terraform-module-aws-mssql-management
+  [share_reddit]: https://reddit.com/submit/?url=https://github.com/cloudopsworks/terraform-module-aws-mssql-management
+  [share_facebook]: https://facebook.com/sharer/sharer.php?u=https://github.com/cloudopsworks/terraform-module-aws-mssql-management
+  [share_googleplus]: https://plus.google.com/share?url=https://github.com/cloudopsworks/terraform-module-aws-mssql-management
+  [share_email]: mailto:?subject=Terraform+Module+for+AWS+MSSQL+Management&body=https://github.com/cloudopsworks/terraform-module-aws-mssql-management
+  [beacon]: https://ga-beacon.cloudops.works/G-7XWMFVFXZT/cloudopsworks/terraform-module-aws-mssql-management?pixel&cs=github&cm=readme&an=terraform-module-aws-mssql-management

@@ -15,9 +15,9 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.4"
     }
-    mysql = {
-      source  = "petoju/mysql"
-      version = "~> 3.0"
+    mssql = {
+      source  = "PGSSoft/mssql"
+      version = "~> 0.6"
     }
     random = {
       source  = "hashicorp/random"

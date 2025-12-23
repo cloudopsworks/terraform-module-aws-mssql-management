@@ -7,113 +7,20 @@
 #     Distributed Under Apache v2.0 License
 #
 
-resource "mysql_grant" "user_tab_def_priv" {
+locals {
+  schema_maping = {
+    for key, db in var.databases : key => {
+      for schema in data.mssql_schemas.all_schemas[key].schemas : schema.name => schema.id
+    }
+  }
+}
+
+
+resource "mssql_schema_permission" "user_tab_def_priv" {
   for_each = {
     for key, user in var.users : key => user if try(user.grant, "") == "readwrite"
   }
-  database = try(each.value.db_ref, "") != "" ? mysql_database.this[each.value.db_ref].name : each.value.database_name
-  user     = mysql_user.user[each.key].user
-  host     = mysql_user.user[each.key].host
-  table    = "*"
-  privileges = [
-    "SELECT",
-    "INSERT",
-    "UPDATE",
-    "DELETE",
-    "EXECUTE",
-  ]
-  depends_on = [
-    mysql_database.this,
-  ]
+  schema_id    = local.schema_maping[try(each.value.db_ref, "") != "" ? each.value.db_ref : each.value.database_id][try(each.value.schema, "dbo")]
+  principal_id = mssql_sql_user.user[each.key].id
+  permission   = "SELECT, INSERT, UPDATE, DELETE, EXECUTE"
 }
-
-# resource "postgresql_default_privileges" "user_seq_def_priv" {
-#   for_each = {
-#     for key, user in var.users : key => user if try(user.grant, "") == "readwrite"
-#   }
-#   database    = try(each.value.db_ref, "") != "" ? mysql_database.this[each.value.db_ref].name : each.value.database_name
-#   role        = postgresql_role.user[each.key].name
-#   owner       = local.admin_role[each.key].admin_role
-#   object_type = "sequence"
-#   schema      = try(each.value.schema, "public")
-#   privileges = [
-#     "SELECT",
-#     "UPDATE",
-#   ]
-#   depends_on = [
-#     mysql_database.this,
-#     postgresql_schema.database_schema,
-#   ]
-# }
-#
-# resource "postgresql_grant" "user_seq_def_priv" {
-#   for_each = {
-#     for key, user in var.users : key => user if try(user.grant, "") == "readwrite"
-#   }
-#   database    = try(each.value.db_ref, "") != "" ? mysql_database.this[each.value.db_ref].name : each.value.database_name
-#   role        = postgresql_role.user[each.key].name
-#   object_type = "sequence"
-#   schema      = try(each.value.schema, "public")
-#   privileges = [
-#     "SELECT",
-#     "UPDATE",
-#   ]
-#   depends_on = [
-#     mysql_database.this,
-#     postgresql_schema.database_schema,
-#   ]
-# }
-#
-# resource "postgresql_default_privileges" "user_func_def_priv" {
-#   for_each = {
-#     for key, user in var.users : key => user if try(user.grant, "") == "readwrite"
-#   }
-#   database    = try(each.value.db_ref, "") != "" ? mysql_database.this[each.value.db_ref].name : each.value.database_name
-#   role        = postgresql_role.user[each.key].name
-#   owner       = local.admin_role[each.key].admin_role
-#   object_type = "function"
-#   schema      = try(each.value.schema, "public")
-#   privileges = [
-#     "EXECUTE",
-#   ]
-#   depends_on = [
-#     mysql_database.this,
-#     postgresql_schema.database_schema,
-#   ]
-# }
-#
-# resource "postgresql_grant" "user_func_def_priv" {
-#   for_each = {
-#     for key, user in var.users : key => user if try(user.grant, "") == "readwrite"
-#   }
-#   database    = try(each.value.db_ref, "") != "" ? mysql_database.this[each.value.db_ref].name : each.value.database_name
-#   role        = postgresql_role.user[each.key].name
-#   object_type = "function"
-#   schema      = try(each.value.schema, "public")
-#   privileges = [
-#     "EXECUTE",
-#   ]
-#   depends_on = [
-#     mysql_database.this,
-#     postgresql_schema.database_schema,
-#   ]
-# }
-#
-# resource "postgresql_default_privileges" "user_types_def_priv" {
-#   for_each = {
-#     for key, user in var.users : key => user if try(user.grant, "") == "readwrite"
-#   }
-#   database    = try(each.value.db_ref, "") != "" ? mysql_database.this[each.value.db_ref].name : each.value.database_name
-#   role        = postgresql_role.user[each.key].name
-#   owner       = local.admin_role[each.key].admin_role
-#   object_type = "type"
-#   schema      = try(each.value.schema, "public")
-#   privileges = [
-#     "USAGE",
-#   ]
-#   depends_on = [
-#     mysql_database.this,
-#     postgresql_schema.database_schema,
-#   ]
-# }
-#
