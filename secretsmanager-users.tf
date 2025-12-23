@@ -164,8 +164,9 @@ resource "aws_secretsmanager_secret" "user" {
   kms_key_id  = var.secrets_kms_key_id
   tags = merge(local.all_tags, {
     "rds-username" = each.value.name
-    "rds-datatabase-name" = (try(each.value.db_ref, "") != "" ?
-      mssql_database.this[each.value.db_ref].name
+    "rds-datatabase-name" = (try(each.value.db_ref, "") != "" ? (
+      try(var.databases[each.value.db_ref].create, true) ? mssql_database.this[each.value.db_ref].name : data.mssql_database.this[each.value.db_ref].name
+      )
       : each.value.database_name
     )
     "rds-server-name" = local.psql.server_name
