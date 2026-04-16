@@ -15,5 +15,9 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.35"
     }
+    mssql = {
+      source  = "PGSSoft/mssql"
+      version = "~> 0.6"
+    }
   }
 }
