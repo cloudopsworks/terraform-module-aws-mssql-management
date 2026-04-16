@@ -94,33 +94,19 @@ EOT
 ## Hoop attributes - YAML format
 # hoop:
 #   enabled: false                           # (Optional) If the hoop should be enabled. Defaults to false
-#   agent: "agent_name"                      # (Optional) Name of the hoop agent. Required if enabled is true
-#   connection_name: "conn_name"             # (Optional) Name of the hoop connection.
-#   db_name: "sqlserver"                     # (Optional) Database name for hoop connection
-#   engine: "sqlserver"                     # (Optional) Engine for hoop connection
-#   server_name: "server_name"               # (Optional) Logical server name
+#   agent_id: "agent-uuid"                   # (Required if enabled) UUID of the Hoop agent.
+#   community: true                          # (Optional) Use community secret prefix (_aws:) vs enterprise (_envs/aws#); default: true
+#   import: false                            # (Optional) Import existing Hoop connection; default: false
+#   tags: {key: "value"}                     # (Optional) Tags map for Hoop connection
+#   access_control: ["group"]               # (Optional) Access control groups for Hoop connection
+#   engine: "sqlserver"                      # (Optional) Engine for hoop connection
+#   server_name: "server_name"              # (Optional) Logical server name
 #   cluster: false                           # (Optional) If it's a cluster
 #   port: 1433                               # (Optional) Port for local tunnel. Defaults to 1433
 #   username: "user"                         # (Optional) Username for local tunnel
 #   password: "pass"                         # (Optional) Password for local tunnel
-#   tags:                                    # (Optional) Tags to apply to the hoop. format <tagname>=<tagvalue>
-#     - "tag=value"
 variable "hoop" {
-  description = <<-EOT
-hoop:
-  enabled: false                           # (Optional) If the hoop should be enabled. Defaults to false
-  agent: "agent_name"                      # (Optional) Name of the hoop agent. Required if enabled is true
-  connection_name: "conn_name"             # (Optional) Name of the hoop connection.
-  db_name: "sqlserver"                     # (Optional) Database name for hoop connection
-  engine: "sqlserver"                     # (Optional) Engine for hoop connection
-  server_name: "server_name"               # (Optional) Logical server name
-  cluster: false                           # (Optional) If it's a cluster
-  port: 1433                               # (Optional) Port for local tunnel. Defaults to 1433
-  username: "user"                         # (Optional) Username for local tunnel
-  password: "pass"                         # (Optional) Password for local tunnel
-  tags:                                    # (Optional) Tags to apply to the hoop. format <tagname>=<tagvalue>
-    - "tag=value"
-EOT
+  description = "Hoop connection output settings for terraform-module-hoop-connection - see docs for example"
   type        = any
   default     = {}
 }
@@ -183,11 +169,6 @@ variable "password_rotation_period" {
   default     = 90
 }
 
-variable "run_hoop" {
-  description = "Run hoop with agent, be careful with this option, it will run the HOOP command in output in a null_resource # (Optional) Defaults to false"
-  type        = bool
-  default     = false
-}
 
 variable "secrets_kms_key_id" {
   description = "(optional) KMS Key ID to use to encrypt data in this secret, can be ARN or KMS Alias # (Optional) Defaults to null"
