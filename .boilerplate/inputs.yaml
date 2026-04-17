@@ -1,1 +1,94 @@
 # Module configuration
+# All required and optional variables for terraform-module-aws-mssql-management
+# Do NOT include: is_hub, spoke_def, org, extra_tags (managed by Terragrunt hierarchy)
+
+# users:                                           # (Optional) Map of SQL Server logins/users to manage
+#   <user_ref>:
+#     name: "user_name"                            # (Required) Name of the user/login
+#     grant: "owner"                               # (Required) Grant type: "owner", "readwrite", "readonly"
+#     db_ref: "db_reference"                       # (Optional) Reference to a database defined in `databases`
+#     database_id: "db_id"                         # (Optional) Direct database ID
+#     default_language: "English"                  # (Optional) Default language for the user
+#     check_password_expiration: false             # (Optional) Check password expiration; default: false
+#     check_password_policy: false                 # (Optional) Check password policy; default: false
+#     must_change_password: false                  # (Optional) Must change password on first login; default: false
+users: {}
+
+# roles:                                           # (Optional) Map of SQL Server database roles/grants to manage
+#   <role_ref>:
+#     name: "role_name"                            # (Required) Name of the role
+#     db_ref: "db_reference"                       # (Optional) Reference to a database defined in `databases`
+#     database_name: "db_name"                     # (Optional) Explicit database name
+#     table_name: "table_name"                     # (Optional) Table name; default: "*"
+#     grant_option: false                          # (Optional) Grant option; default: false
+#     grants:                                      # (Optional) SQL grants; default: ALL PRIVILEGES
+#       - "SELECT"
+roles: {}
+
+# databases:                                       # (Optional) Map of SQL Server databases to manage
+#   <db_ref>:
+#     name: "db_name"                              # (Required) Name of the database
+#     create: true                                 # (Optional) Create the database; default: true
+#     create_owner: false                          # (Optional) Create dedicated owner login; default: false
+#     owner: "owner_name"                          # (Optional) Owner name; required if create_owner=false
+#     default_collation: "SQL_Latin1_General_CP1_CI_AS" # (Optional) Collation; defaults to server default
+#     default_language: "English"                  # (Optional) Default language for owner user
+#     check_password_expiration: false             # (Optional) Password expiration for owner; default: false
+#     check_password_policy: false                 # (Optional) Password policy for owner; default: false
+#     must_change_password: false                  # (Optional) Must change password for owner; default: false
+databases: {}
+
+# hoop:                                            # (Optional) Hoop connection output settings
+#   enabled: false                                 # (Optional) Enable Hoop; default: false
+#   agent_id: ""                                   # (Required if enabled) UUID of the Hoop agent
+#   community: true                                # (Optional) Community secret prefix (_aws:) vs enterprise (_envs/aws#); default: true
+#   import: false                                  # (Optional) Import existing Hoop connection; default: false
+#   tags: {}                                       # (Optional) Tags map for Hoop connection
+#   access_control: []                             # (Optional) Access control groups for Hoop connection
+#   engine: "sqlserver"                            # (Optional) Database engine; default: "sqlserver"
+#   server_name: ""                                # (Optional) Logical server name
+#   cluster: false                                 # (Optional) Is server a cluster; default: false
+#   port: 1433                                     # (Optional) Port for local tunnel; default: 1433
+#   username: ""                                   # (Optional) Username for local tunnel
+#   password: ""                                   # (Optional) Password for local tunnel
+hoop: {}
+
+# rds:                                             # (Optional) RDS integration settings
+#   enabled: false                                 # (Optional) Enable RDS integration; default: false
+#   name: ""                                       # (Optional) RDS instance identifier; required if enabled
+#   secret_name: ""                                # (Optional) Secrets Manager secret name; required if enabled
+#   cluster: false                                 # (Optional) Is this an Aurora cluster; default: false
+#   from_secret: false                             # (Optional) Read connection details from secret; default: false
+#   server_name: ""                                # (Optional) Override logical server name
+rds: {}
+
+# direct:                                          # (Optional) Direct connection settings (non-RDS)
+#   server_name: ""                                # (Required) Logical server name
+#   host: ""                                       # (Required) Database host address
+#   port: 1433                                     # (Required) Database port
+#   jump_host: ""                                  # (Optional) Jump/bastion host for SSH tunneling
+#   jump_port: 22                                  # (Optional) Jump host port; default: 22
+#   username: ""                                   # (Optional) Database username
+#   password: ""                                   # (Optional) Database password
+#   secret_name: ""                                # (Optional) Secrets Manager secret name for credentials
+#   engine: "sqlserver"                            # (Optional) Database engine; default: "sqlserver"
+#   db_name: "master"                              # (Optional) Default database name; default: "master"
+direct: {}
+
+# password_rotation_period: 90                    # (Optional) Password rotation period in days; default: 90
+password_rotation_period: 90
+
+# secrets_kms_key_id: null                        # (Optional) KMS Key ID/ARN/Alias for Secrets Manager encryption; default: null
+secrets_kms_key_id: null
+
+# rotation_lambda_name: ""                        # (Optional) Lambda function name for password rotation; default: ""
+rotation_lambda_name: ""
+
+# rotation_duration: "1h"                         # (Optional) Lambda rotation duration; default: "1h"
+rotation_duration: "1h"
+
+# rotate_immediately: false                       # (Optional) Rotate password immediately on apply; default: false
+rotate_immediately: false
+
+# force_reset: false                              # (Optional) Force reset the password; default: false
+force_reset: false
