@@ -18,6 +18,8 @@
 #     check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
 #     check_password_policy: false           # (Optional) Check password policy. Defaults to false
 #     must_change_password: false            # (Optional) Must change password on first login. Defaults to false
+#     hoop:                                    # (Optional) Hoop settings for the user
+#       access_control: ["group"]             # (Optional) Access control groups merged with hoop.access_control. Defaults to []
 variable "users" {
   description = <<-EOT
 users:
@@ -30,6 +32,8 @@ users:
     check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
     check_password_policy: false           # (Optional) Check password policy. Defaults to false
     must_change_password: false            # (Optional) Must change password on first login. Defaults to false
+    hoop:                                  # (Optional) Hoop settings for the user
+      access_control: ["group"]            # (Optional) Access control groups merged with hoop.access_control. Defaults to []
 EOT
   type        = any
   default     = {}
