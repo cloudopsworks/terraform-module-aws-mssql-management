@@ -14,6 +14,7 @@ locals {
 }
 
 output "hoop_connections" {
+  description = "Hoop database connection definitions generated for managed owners and users."
   value = local.hoop_enabled ? merge(
     {
       for key, db in var.databases :

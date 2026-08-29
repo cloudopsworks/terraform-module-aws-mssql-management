@@ -9,6 +9,7 @@
 
 
 output "owners" {
+  description = "Managed database owners and their Secrets Manager credential references."
   value = {
     for key, db in var.databases : key => {
       username               = local.owner_list[key]
@@ -20,6 +21,7 @@ output "owners" {
 }
 
 output "users" {
+  description = "Managed database users and their Secrets Manager credential references."
   value = {
     for key, user in var.users : key => {
       username               = user.name
