@@ -51,6 +51,8 @@ This Terraform module simplifies AWS MSSQL database management by providing a de
 - **User Management**: Automated user creation with different permission levels (owner, readwrite, readonly)
 - **Role Management**: Flexible role-based access control with granular permissions
 - **Security Integration**: AWS Secrets Manager integration for secure credential storage
+- **Secret Lifecycle Controls**: Recovery windows, cross-region replication, and import of existing secrets
+- **Password Compatibility**: Optional alphanumeric-only generated passwords
 - **Password Rotation**: Automated password rotation with Lambda function support
 - **Access Control**: Hoop.dev integration for secure, audited database access
 - **Multi-Environment Support**: Hub and spoke architecture support for complex deployments
@@ -70,7 +72,7 @@ To use this module with Terragrunt, define your `terragrunt.hcl` as follows:
 
 ```hcl
 terraform {
-  source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.0.0"
+  source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.4.0"
 }
 
 inputs = {
@@ -114,6 +116,10 @@ inputs = {
 | `check_password_expiration` | `bool` | Optional | Check password expiration (default: `false`) |
 | `check_password_policy` | `bool` | Optional | Check password policy (default: `false`) |
 | `must_change_password` | `bool` | Optional | Must change password on first login (default: `false`) |
+| `secret.import` | `bool` | Optional | Import the existing Secrets Manager secret (default: `false`) |
+| `secret.recovery_window` | `number` | Optional | Override the module recovery window with 0 or 7-30 days |
+| `secret.replica.region` | `string` | Optional | Override the replica region for this secret |
+| `secret.replica.kms_key_id` | `string` | Optional | Override the KMS key in the replica region |
 
 #### Full YAML Documentation
 ```yaml
@@ -127,6 +133,12 @@ users:
     check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
     check_password_policy: false           # (Optional) Check password policy. Defaults to false
     must_change_password: false            # (Optional) Must change password on first login. Defaults to false
+    secret:
+      import: false                        # (Optional) Import the existing Secrets Manager secret
+      recovery_window: 30                  # (Optional) 0 or 7-30 days
+      replica:
+        region: "us-west-2"                # (Optional) Cross-region replica
+        kms_key_id: "alias/replica-key"    # (Optional) KMS key in the replica region
 ```
 
 ### Databases (`databases` variable)
@@ -141,6 +153,10 @@ users:
 | `check_password_expiration` | `bool` | Optional | Check password expiration for owner (default: `false`) |
 | `check_password_policy` | `bool` | Optional | Check password policy for owner (default: `false`) |
 | `must_change_password` | `bool` | Optional | Must change password for owner (default: `false`) |
+| `secret.import` | `bool` | Optional | Import the existing owner secret (default: `false`) |
+| `secret.recovery_window` | `number` | Optional | Override the module recovery window with 0 or 7-30 days |
+| `secret.replica.region` | `string` | Optional | Override the replica region for the owner secret |
+| `secret.replica.kms_key_id` | `string` | Optional | Override the KMS key in the replica region |
 
 #### Full YAML Documentation
 ```yaml
@@ -155,6 +171,12 @@ databases:
     check_password_expiration: false       # (Optional) Check password expiration for owner. Defaults to false
     check_password_policy: false           # (Optional) Check password policy for owner. Defaults to false
     must_change_password: false            # (Optional) Must change password for owner on first login. Defaults to false
+    secret:
+      import: false                        # (Optional) Import the existing owner secret
+      recovery_window: 30                  # (Optional) 0 or 7-30 days
+      replica:
+        region: "us-west-2"                # (Optional) Cross-region replica
+        kms_key_id: "alias/replica-key"    # (Optional) KMS key in the replica region
 ```
 
 ### Roles (`roles` variable)
@@ -266,10 +288,14 @@ direct:
 | `password_rotation_period` | `number` | `90` | Password rotation period in days |
 | `run_hoop` | `bool` | `false` | Run hoop with agent via null_resource |
 | `secrets_kms_key_id` | `string` | `null` | KMS Key ID for Secrets Manager encryption |
+| `secrets_recovery_window` | `number` | `30` | Default secret deletion recovery window; 0 or 7-30 days |
+| `secrets_replica_region` | `string` | `null` | Default cross-region replica region |
+| `secrets_replica_kms_key_id` | `string` | `null` | Default KMS key in the replica region |
 | `rotation_lambda_name` | `string` | `""` | Name of the rotation lambda function |
 | `rotation_duration` | `string` | `"1h"` | Rotation lambda duration |
 | `rotate_immediately` | `bool` | `false` | Rotate password immediately |
 | `force_reset` | `bool` | `false` | Force Reset the password |
+| `specials_in_password` | `bool` | `true` | Include supported special characters in generated passwords |
 
 ## Quick Start
 
@@ -278,7 +304,7 @@ direct:
 ### 1. Create `terragrunt.hcl`
 ```hcl
 terraform {
-  source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.0.0"
+  source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.4.0"
 }
 
 inputs = {
@@ -385,16 +411,16 @@ Available targets:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.35 |
-| <a name="provider_mssql"></a> [mssql](#provider\_mssql) | ~> 0.6 |
-| <a name="provider_random"></a> [random](#provider\_random) | n/a |
-| <a name="provider_time"></a> [time](#provider\_time) | n/a |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.41.0 |
+| <a name="provider_mssql"></a> [mssql](#provider\_mssql) | 0.6.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
+| <a name="provider_time"></a> [time](#provider\_time) | 0.13.1 |
 
 ## Modules
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_tags"></a> [tags](#module\_tags) | cloudopsworks/tags/local | 1.0.9 |
+| <a name="module_tags"></a> [tags](#module\_tags) | cloudopsworks/tags/local | 1.0.10 |
 
 ## Resources
 
@@ -423,6 +449,7 @@ Available targets:
 | [random_password.user_initial](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [time_rotating.owner](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/rotating) | resource |
 | [time_rotating.user](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/rotating) | resource |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_db_instance.db](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/db_instance) | data source |
 | [aws_db_instance.hoop_db_server](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/db_instance) | data source |
 | [aws_lambda_function.rotation_function](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/lambda_function) | data source |
@@ -446,7 +473,7 @@ Available targets:
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_databases"></a> [databases](#input\_databases) | databases:<br/>  <db\_ref>:<br/>    name: "db\_name"                        # (Required) Name of the database<br/>    create: true                           # (Optional) Whether to create the database. Defaults to true<br/>    create\_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false<br/>    owner: "owner\_name"                    # (Optional) Owner of the database, required if create\_owner is false<br/>    default\_collation: "SQL\_Latin1\_General\_CP1\_CI\_AS" # (Optional) Collation of the database. Defaults to server default<br/>    default\_language: "English"            # (Optional) Default language for the owner user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration for owner. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy for owner. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password for owner on first login. Defaults to false | `any` | `{}` | no |
+| <a name="input_databases"></a> [databases](#input\_databases) | databases:<br/>  <db\_ref>:<br/>    name: "db\_name"                        # (Required) Name of the database<br/>    create: true                           # (Optional) Whether to create the database. Defaults to true<br/>    create\_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false<br/>    owner: "owner\_name"                    # (Optional) Owner of the database, required if create\_owner is false<br/>    default\_collation: "SQL\_Latin1\_General\_CP1\_CI\_AS" # (Optional) Collation of the database. Defaults to server default<br/>    default\_language: "English"            # (Optional) Default language for the owner user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration for owner. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy for owner. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password for owner on first login. Defaults to false<br/>    secret:                                # (Optional) Owner-secret settings, used when create\_owner is true.<br/>      import: false                        # (Optional) Import the existing owner secret. Defaults to false.<br/>      recovery\_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets\_recovery\_window.<br/>      replica:<br/>        region: "us-west-2"                # (Optional) Replica region. Defaults to secrets\_replica\_region.<br/>        kms\_key\_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets\_replica\_kms\_key\_id. | `any` | `{}` | no |
 | <a name="input_direct"></a> [direct](#input\_direct) | direct:<br/>  server\_name: "server"                    # (Required) Logical server name<br/>  host: "host\_address"                     # (Required) Database host address<br/>  port: 1433                               # (Required) Database port<br/>  jump\_host: "jump\_host"                   # (Optional) Jump host address<br/>  jump\_port: 22                            # (Optional) Jump host port<br/>  username: "admin"                        # (Optional) Database username<br/>  password: "password"                     # (Optional) Database password<br/>  secret\_name: "secret\_path"               # (Optional) AWS Secrets Manager secret name for credentials<br/>  engine: "sqlserver"                     # (Optional) Database engine. Defaults to sqlserver<br/>  db\_name: "master"                        # (Optional) Default database name | `any` | `{}` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
 | <a name="input_force_reset"></a> [force\_reset](#input\_force\_reset) | Force Reset the password # (Optional) Defaults to false | `bool` | `false` | no |
@@ -460,16 +487,20 @@ Available targets:
 | <a name="input_rotation_duration"></a> [rotation\_duration](#input\_rotation\_duration) | Duration of the lambda function to rotate the password # (Optional) Defaults to 1h | `string` | `"1h"` | no |
 | <a name="input_rotation_lambda_name"></a> [rotation\_lambda\_name](#input\_rotation\_lambda\_name) | Name of the lambda function to rotate the password # (Optional) Defaults to empty | `string` | `""` | no |
 | <a name="input_secrets_kms_key_id"></a> [secrets\_kms\_key\_id](#input\_secrets\_kms\_key\_id) | (optional) KMS Key ID to use to encrypt data in this secret, can be ARN or KMS Alias # (Optional) Defaults to null | `string` | `null` | no |
+| <a name="input_secrets_recovery_window"></a> [secrets\_recovery\_window](#input\_secrets\_recovery\_window) | (optional) Default recovery window in days before a deleted secret is permanently removed. Use 0 to delete immediately, otherwise 7-30. Defaults to 30 | `number` | `30` | no |
+| <a name="input_secrets_replica_kms_key_id"></a> [secrets\_replica\_kms\_key\_id](#input\_secrets\_replica\_kms\_key\_id) | (optional) KMS Key ID used to encrypt replicated secrets, can be ARN or KMS Alias. Must reside in the replica region. Defaults to null (AWS managed key) | `string` | `null` | no |
+| <a name="input_secrets_replica_region"></a> [secrets\_replica\_region](#input\_secrets\_replica\_region) | (optional) Region to replicate every managed secret into. When null, no replica is created unless set per entity. Defaults to null | `string` | `null` | no |
+| <a name="input_specials_in_password"></a> [specials\_in\_password](#input\_specials\_in\_password) | (optional) Use special characters in generated owner/user passwords. When false, generated passwords are alphanumeric only. Defaults to true | `bool` | `true` | no |
 | <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke ID Number, must be a 3 digit number | `string` | `"001"` | no |
-| <a name="input_users"></a> [users](#input\_users) | users:<br/>  <user\_ref>:<br/>    name: "user\_name"                      # (Required) Name of the user<br/>    grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly<br/>    db\_ref: "db\_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server<br/>    database\_id: "db\_id"                   # (Optional) Direct ID of the database this user is associated with<br/>    default\_language: "English"            # (Optional) Default language for the user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password on first login. Defaults to false<br/>    hoop:                                  # (Optional) Hoop settings for the user<br/>      access\_control: ["group"]            # (Optional) Access control groups merged with hoop.access\_control. Defaults to [] | `any` | `{}` | no |
+| <a name="input_users"></a> [users](#input\_users) | users:<br/>  <user\_ref>:<br/>    name: "user\_name"                      # (Required) Name of the user<br/>    grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly<br/>    db\_ref: "db\_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server<br/>    database\_id: "db\_id"                   # (Optional) Direct ID of the database this user is associated with<br/>    default\_language: "English"            # (Optional) Default language for the user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password on first login. Defaults to false<br/>    secret:                                # (Optional) Per-user Secrets Manager settings. Module-wide defaults apply when omitted.<br/>      import: false                        # (Optional) Import the existing Secrets Manager secret. Defaults to false.<br/>      recovery\_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets\_recovery\_window.<br/>      replica:<br/>        region: "us-west-2"                # (Optional) Replica region. Defaults to secrets\_replica\_region.<br/>        kms\_key\_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets\_replica\_kms\_key\_id.<br/>    hoop:                                  # (Optional) Hoop settings for the user<br/>      access\_control: ["group"]            # (Optional) Access control groups merged with hoop.access\_control. Defaults to [] | `any` | `{}` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| <a name="output_hoop_connections"></a> [hoop\_connections](#output\_hoop\_connections) | n/a |
-| <a name="output_owners"></a> [owners](#output\_owners) | n/a |
-| <a name="output_users"></a> [users](#output\_users) | n/a |
+| <a name="output_hoop_connections"></a> [hoop\_connections](#output\_hoop\_connections) | Hoop database connection definitions generated for managed owners and users. |
+| <a name="output_owners"></a> [owners](#output\_owners) | Managed database owners and their Secrets Manager credential references. |
+| <a name="output_users"></a> [users](#output\_users) | Managed database users and their Secrets Manager credential references. |
 
 
 

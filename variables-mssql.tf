@@ -18,8 +18,14 @@
 #     check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
 #     check_password_policy: false           # (Optional) Check password policy. Defaults to false
 #     must_change_password: false            # (Optional) Must change password on first login. Defaults to false
-#     hoop:                                    # (Optional) Hoop settings for the user
-#       access_control: ["group"]             # (Optional) Access control groups merged with hoop.access_control. Defaults to []
+#     secret:                                # (Optional) Per-user Secrets Manager settings. Module-wide defaults apply when omitted.
+#       import: false                        # (Optional) Import the existing Secrets Manager secret. Defaults to false.
+#       recovery_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets_recovery_window.
+#       replica:
+#         region: "us-west-2"                # (Optional) Replica region. Defaults to secrets_replica_region.
+#         kms_key_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets_replica_kms_key_id.
+#     hoop:                                  # (Optional) Hoop settings for the user
+#       access_control: ["group"]            # (Optional) Access control groups merged with hoop.access_control. Defaults to []
 variable "users" {
   description = <<-EOT
 users:
@@ -32,6 +38,12 @@ users:
     check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
     check_password_policy: false           # (Optional) Check password policy. Defaults to false
     must_change_password: false            # (Optional) Must change password on first login. Defaults to false
+    secret:                                # (Optional) Per-user Secrets Manager settings. Module-wide defaults apply when omitted.
+      import: false                        # (Optional) Import the existing Secrets Manager secret. Defaults to false.
+      recovery_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets_recovery_window.
+      replica:
+        region: "us-west-2"                # (Optional) Replica region. Defaults to secrets_replica_region.
+        kms_key_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets_replica_kms_key_id.
     hoop:                                  # (Optional) Hoop settings for the user
       access_control: ["group"]            # (Optional) Access control groups merged with hoop.access_control. Defaults to []
 EOT
@@ -77,6 +89,12 @@ EOT
 #     check_password_expiration: false       # (Optional) Check password expiration for owner. Defaults to false
 #     check_password_policy: false           # (Optional) Check password policy for owner. Defaults to false
 #     must_change_password: false            # (Optional) Must change password for owner on first login. Defaults to false
+#     secret:                                # (Optional) Owner-secret settings, used when create_owner is true.
+#       import: false                        # (Optional) Import the existing owner secret. Defaults to false.
+#       recovery_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets_recovery_window.
+#       replica:
+#         region: "us-west-2"                # (Optional) Replica region. Defaults to secrets_replica_region.
+#         kms_key_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets_replica_kms_key_id.
 variable "databases" {
   description = <<-EOT
 databases:
@@ -90,6 +108,12 @@ databases:
     check_password_expiration: false       # (Optional) Check password expiration for owner. Defaults to false
     check_password_policy: false           # (Optional) Check password policy for owner. Defaults to false
     must_change_password: false            # (Optional) Must change password for owner on first login. Defaults to false
+    secret:                                # (Optional) Owner-secret settings, used when create_owner is true.
+      import: false                        # (Optional) Import the existing owner secret. Defaults to false.
+      recovery_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets_recovery_window.
+      replica:
+        region: "us-west-2"                # (Optional) Replica region. Defaults to secrets_replica_region.
+        kms_key_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets_replica_kms_key_id.
 EOT
   type        = any
   default     = {}
@@ -202,4 +226,29 @@ variable "force_reset" {
   description = "Force Reset the password # (Optional) Defaults to false"
   type        = bool
   default     = false
+}
+
+variable "specials_in_password" {
+  description = "(optional) Use special characters in generated owner/user passwords. When false, generated passwords are alphanumeric only. Defaults to true"
+  type        = bool
+  default     = true
+}
+
+variable "secrets_recovery_window" {
+  description = "(optional) Default recovery window in days before a deleted secret is permanently removed. Use 0 to delete immediately, otherwise 7-30. Defaults to 30"
+  type        = number
+  default     = 30
+  nullable    = false
+}
+
+variable "secrets_replica_region" {
+  description = "(optional) Region to replicate every managed secret into. When null, no replica is created unless set per entity. Defaults to null"
+  type        = string
+  default     = null
+}
+
+variable "secrets_replica_kms_key_id" {
+  description = "(optional) KMS Key ID used to encrypt replicated secrets, can be ARN or KMS Alias. Must reside in the replica region. Defaults to null (AWS managed key)"
+  type        = string
+  default     = null
 }

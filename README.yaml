@@ -21,6 +21,8 @@ introduction: |-
   - **User Management**: Automated user creation with different permission levels (owner, readwrite, readonly)
   - **Role Management**: Flexible role-based access control with granular permissions
   - **Security Integration**: AWS Secrets Manager integration for secure credential storage
+  - **Secret Lifecycle Controls**: Recovery windows, cross-region replication, and import of existing secrets
+  - **Password Compatibility**: Optional alphanumeric-only generated passwords
   - **Password Rotation**: Automated password rotation with Lambda function support
   - **Access Control**: Hoop.dev integration for secure, audited database access
   - **Multi-Environment Support**: Hub and spoke architecture support for complex deployments
@@ -35,7 +37,7 @@ usage: |-
 
   ```hcl
   terraform {
-    source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.0.0"
+    source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.4.0"
   }
 
   inputs = {
@@ -79,6 +81,10 @@ usage: |-
   | `check_password_expiration` | `bool` | Optional | Check password expiration (default: `false`) |
   | `check_password_policy` | `bool` | Optional | Check password policy (default: `false`) |
   | `must_change_password` | `bool` | Optional | Must change password on first login (default: `false`) |
+  | `secret.import` | `bool` | Optional | Import the existing Secrets Manager secret (default: `false`) |
+  | `secret.recovery_window` | `number` | Optional | Override the module recovery window with 0 or 7-30 days |
+  | `secret.replica.region` | `string` | Optional | Override the replica region for this secret |
+  | `secret.replica.kms_key_id` | `string` | Optional | Override the KMS key in the replica region |
 
   #### Full YAML Documentation
   ```yaml
@@ -92,6 +98,12 @@ usage: |-
       check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
       check_password_policy: false           # (Optional) Check password policy. Defaults to false
       must_change_password: false            # (Optional) Must change password on first login. Defaults to false
+      secret:
+        import: false                        # (Optional) Import the existing Secrets Manager secret
+        recovery_window: 30                  # (Optional) 0 or 7-30 days
+        replica:
+          region: "us-west-2"                # (Optional) Cross-region replica
+          kms_key_id: "alias/replica-key"    # (Optional) KMS key in the replica region
   ```
 
   ### Databases (`databases` variable)
@@ -106,6 +118,10 @@ usage: |-
   | `check_password_expiration` | `bool` | Optional | Check password expiration for owner (default: `false`) |
   | `check_password_policy` | `bool` | Optional | Check password policy for owner (default: `false`) |
   | `must_change_password` | `bool` | Optional | Must change password for owner (default: `false`) |
+  | `secret.import` | `bool` | Optional | Import the existing owner secret (default: `false`) |
+  | `secret.recovery_window` | `number` | Optional | Override the module recovery window with 0 or 7-30 days |
+  | `secret.replica.region` | `string` | Optional | Override the replica region for the owner secret |
+  | `secret.replica.kms_key_id` | `string` | Optional | Override the KMS key in the replica region |
 
   #### Full YAML Documentation
   ```yaml
@@ -120,6 +136,12 @@ usage: |-
       check_password_expiration: false       # (Optional) Check password expiration for owner. Defaults to false
       check_password_policy: false           # (Optional) Check password policy for owner. Defaults to false
       must_change_password: false            # (Optional) Must change password for owner on first login. Defaults to false
+      secret:
+        import: false                        # (Optional) Import the existing owner secret
+        recovery_window: 30                  # (Optional) 0 or 7-30 days
+        replica:
+          region: "us-west-2"                # (Optional) Cross-region replica
+          kms_key_id: "alias/replica-key"    # (Optional) KMS key in the replica region
   ```
 
   ### Roles (`roles` variable)
@@ -231,10 +253,14 @@ usage: |-
   | `password_rotation_period` | `number` | `90` | Password rotation period in days |
   | `run_hoop` | `bool` | `false` | Run hoop with agent via null_resource |
   | `secrets_kms_key_id` | `string` | `null` | KMS Key ID for Secrets Manager encryption |
+  | `secrets_recovery_window` | `number` | `30` | Default secret deletion recovery window; 0 or 7-30 days |
+  | `secrets_replica_region` | `string` | `null` | Default cross-region replica region |
+  | `secrets_replica_kms_key_id` | `string` | `null` | Default KMS key in the replica region |
   | `rotation_lambda_name` | `string` | `""` | Name of the rotation lambda function |
   | `rotation_duration` | `string` | `"1h"` | Rotation lambda duration |
   | `rotate_immediately` | `bool` | `false` | Rotate password immediately |
   | `force_reset` | `bool` | `false` | Force Reset the password |
+  | `specials_in_password` | `bool` | `true` | Include supported special characters in generated passwords |
 
 # Example usage
 examples: |-
@@ -284,7 +310,7 @@ quickstart: |-
   ### 1. Create `terragrunt.hcl`
   ```hcl
   terraform {
-    source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.0.0"
+    source = "git::https://github.com/cloudopsworks/terraform-module-aws-mssql-management.git?ref=v1.4.0"
   }
 
   inputs = {

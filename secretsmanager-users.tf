@@ -23,6 +23,15 @@ locals {
       replace(v.name, "_", "-")
     )
   }
+  user_secret_settings = {
+    for k, v in var.users : k => {
+      recovery_window = try(v.secret.recovery_window, null) != null ? v.secret.recovery_window : var.secrets_recovery_window
+      replica_region  = try(v.secret.replica.region, null) != null ? v.secret.replica.region : var.secrets_replica_region
+      replica_kms_key_id = (try(v.secret.replica.kms_key_id, null) != null ?
+        v.secret.replica.kms_key_id : var.secrets_replica_kms_key_id
+      )
+    }
+  }
   user_secrets_data = {
     for key, user in var.users : key => merge({
       username = user.name
@@ -157,11 +166,27 @@ locals {
   }
 }
 
+import {
+  for_each = {
+    for key, user in var.users : key => user if try(user.secret.import, false)
+  }
+  to = aws_secretsmanager_secret.user[each.key]
+  id = "arn:aws:secretsmanager:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:secret:${local.user_names_list[each.key]}"
+}
+
 resource "aws_secretsmanager_secret" "user" {
-  for_each    = var.users
-  name        = local.user_names_list[each.key]
-  description = "RDS User Credentials - ${each.value.name} - Grants: ${each.value.grant} - ${local.psql.engine} - ${local.psql.server_name}"
-  kms_key_id  = var.secrets_kms_key_id
+  for_each                = var.users
+  name                    = local.user_names_list[each.key]
+  description             = "RDS User Credentials - ${each.value.name} - Grants: ${each.value.grant} - ${local.psql.engine} - ${local.psql.server_name}"
+  kms_key_id              = var.secrets_kms_key_id
+  recovery_window_in_days = local.user_secret_settings[each.key].recovery_window
+  dynamic "replica" {
+    for_each = local.user_secret_settings[each.key].replica_region != null ? [local.user_secret_settings[each.key]] : []
+    content {
+      kms_key_id = replica.value.replica_kms_key_id
+      region     = replica.value.replica_region
+    }
+  }
   tags = merge(local.all_tags, {
     "rds-username" = each.value.name
     "rds-datatabase-name" = (try(each.value.db_ref, "") != "" ? (

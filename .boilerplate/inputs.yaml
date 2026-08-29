@@ -12,6 +12,12 @@
 #     check_password_expiration: false             # (Optional) Check password expiration; default: false
 #     check_password_policy: false                 # (Optional) Check password policy; default: false
 #     must_change_password: false                  # (Optional) Must change password on first login; default: false
+#     secret:                                      # (Optional) Per-user Secrets Manager settings; module defaults apply when omitted
+#       import: false                              # (Optional) Import existing secret; default: false
+#       recovery_window: 30                        # (Optional) 0 or 7-30 days; default: secrets_recovery_window
+#       replica:
+#         region: "us-west-2"                      # (Optional) Replica region; default: secrets_replica_region
+#         kms_key_id: "alias/key"                  # (Optional) Replica KMS key; default: secrets_replica_kms_key_id
 users: {}
 
 # roles:                                           # (Optional) Map of SQL Server database roles/grants to manage
@@ -36,6 +42,12 @@ roles: {}
 #     check_password_expiration: false             # (Optional) Password expiration for owner; default: false
 #     check_password_policy: false                 # (Optional) Password policy for owner; default: false
 #     must_change_password: false                  # (Optional) Must change password for owner; default: false
+#     secret:                                      # (Optional) Owner-secret settings when create_owner=true
+#       import: false                              # (Optional) Import existing owner secret; default: false
+#       recovery_window: 30                        # (Optional) 0 or 7-30 days; default: secrets_recovery_window
+#       replica:
+#         region: "us-west-2"                      # (Optional) Replica region; default: secrets_replica_region
+#         kms_key_id: "alias/key"                  # (Optional) Replica KMS key; default: secrets_replica_kms_key_id
 databases: {}
 
 # hoop:                                            # (Optional) Hoop connection output settings
@@ -81,6 +93,15 @@ password_rotation_period: 90
 # secrets_kms_key_id: null                        # (Optional) KMS Key ID/ARN/Alias for Secrets Manager encryption; default: null
 secrets_kms_key_id: null
 
+# secrets_recovery_window: 30                     # (Optional) Default secret recovery window: 0 or 7-30 days
+secrets_recovery_window: 30
+
+# secrets_replica_region: null                    # (Optional) Default cross-region replica region; null disables replication
+secrets_replica_region: null
+
+# secrets_replica_kms_key_id: null                # (Optional) Default replica-region KMS key; null uses AWS managed key
+secrets_replica_kms_key_id: null
+
 # rotation_lambda_name: ""                        # (Optional) Lambda function name for password rotation; default: ""
 rotation_lambda_name: ""
 
@@ -92,3 +113,6 @@ rotate_immediately: false
 
 # force_reset: false                              # (Optional) Force reset the password; default: false
 force_reset: false
+
+# specials_in_password: true                      # (Optional) Generate passwords with special characters; false is alphanumeric-only
+specials_in_password: true
