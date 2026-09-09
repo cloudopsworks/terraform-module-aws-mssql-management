@@ -1,5 +1,5 @@
 ##
-# (c) 2021-2025
+# (c) 2021-2026
 #     Cloud Ops Works LLC - https://cloudops.works/
 #     Find us on:
 #       GitHub: https://github.com/cloudopsworks
@@ -16,10 +16,7 @@ locals {
       local.secret_store_path,
       local.psql.engine,
       local.psql.server_name,
-      replace((try(v.db_ref, "") != "" ?
-        var.databases[v.db_ref].name
-        : v.database_name
-      ), "_", "-"),
+      replace(local.user_default_target[k].database_name, "_", "-"),
       replace(v.name, "_", "-")
     )
   }
@@ -44,9 +41,7 @@ locals {
         try(var.hoop.cluster, false) ? data.aws_rds_cluster.hoop_db_server[0].port :
         data.aws_db_instance.hoop_db_server[0].port
       ) : local.psql.port
-      dbname = try(user.db_ref, "") != "" ? (
-        try(var.databases[user.db_ref].create, true) ? mssql_database.this[user.db_ref].name : data.mssql_database.this[user.db_ref].name
-      ) : user.database_name
+      dbname = local.user_default_target[key].database_name
       engine = local.psql.engine
       },
       length(data.aws_secretsmanager_secret.db_password) > 0 ? {
@@ -115,9 +110,7 @@ locals {
         try(var.hoop.cluster, false) ? data.aws_rds_cluster.hoop_db_server[0].port :
         data.aws_db_instance.hoop_db_server[0].port
       ) : local.psql.port
-      dbname = try(user.db_ref, "") != "" ? (
-        try(var.databases[user.db_ref].create, true) ? mssql_database.this[user.db_ref].name : data.mssql_database.this[user.db_ref].name
-      ) : user.database_name
+      dbname = local.user_default_target[key].database_name
       engine = local.psql.engine
       },
       length(data.aws_secretsmanager_secret.db_password) > 0 ? {
@@ -188,13 +181,9 @@ resource "aws_secretsmanager_secret" "user" {
     }
   }
   tags = merge(local.all_tags, {
-    "rds-username" = each.value.name
-    "rds-datatabase-name" = (try(each.value.db_ref, "") != "" ? (
-      try(var.databases[each.value.db_ref].create, true) ? mssql_database.this[each.value.db_ref].name : data.mssql_database.this[each.value.db_ref].name
-      )
-      : each.value.database_name
-    )
-    "rds-server-name" = local.psql.server_name
+    "rds-username"        = each.value.name
+    "rds-datatabase-name" = local.user_default_target[each.key].database_name
+    "rds-server-name"     = local.psql.server_name
   })
 }
 

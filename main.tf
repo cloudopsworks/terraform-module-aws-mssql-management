@@ -1,17 +1,11 @@
 ##
-# (c) 2021-2025
+# (c) 2021-2026
 #     Cloud Ops Works LLC - https://cloudops.works/
 #     Find us on:
 #       GitHub: https://github.com/cloudopsworks
 #       WebSite: https://cloudops.works
 #     Distributed Under Apache v2.0 License
 #
-
-locals {
-  owner_list = {
-    for key, db in var.databases : key => "${db.name}_ow" if try(db.create_owner, false)
-  }
-}
 
 resource "time_rotating" "owner" {
   for_each = {
@@ -66,12 +60,34 @@ resource "mssql_database" "this" {
   collation = try(each.value.default_collation, null)
 }
 
+#############################################################################
+## SCHEMAS
+#############################################################################
+
 data "mssql_schemas" "all_schemas" {
-  for_each = {
-    for key, db in var.databases : key => db
-  }
-  database_id = try(each.value.create, true) ? mssql_database.this[each.key].id : data.mssql_database.this[each.key].id
+  for_each    = var.databases
+  database_id = local.database_ids[each.key]
 }
+
+# Schemas of databases referenced by users through a verbatim `database_id`
+# instead of a `db_ref`, so schema grants resolve for them too.
+data "mssql_schemas" "external" {
+  for_each    = toset(local.external_database_ids)
+  database_id = each.value
+}
+
+resource "mssql_schema" "this" {
+  for_each    = local.database_schemas
+  name        = each.value.name
+  database_id = local.database_ids[each.value.db_key]
+  owner_id = each.value.owner_ref != null ? (
+    local.user_principal_ids[format("%s/%s", each.value.owner_ref, each.value.db_key)]
+  ) : null
+}
+
+#############################################################################
+## OWNERS
+#############################################################################
 
 resource "mssql_sql_login" "owner" {
   depends_on = [mssql_database.this]
@@ -84,7 +100,7 @@ resource "mssql_sql_login" "owner" {
     jsondecode(data.aws_secretsmanager_secret_version.owner_rotated[each.key].secret_string)["password"] :
     random_password.owner_initial[each.key].result
   )
-  default_database_id       = try(each.value.create, true) ? mssql_database.this[each.key].id : data.mssql_database.this[each.key].id
+  default_database_id       = local.database_ids[each.key]
   default_language          = try(each.value.default_language, null)
   check_password_expiration = try(each.value.check_password_expiration, false)
   check_password_policy     = try(each.value.check_password_policy, false)
@@ -98,7 +114,17 @@ resource "mssql_sql_user" "owner" {
   }
   name        = local.owner_list[each.key]
   login_id    = mssql_sql_login.owner[each.key].id
-  database_id = try(each.value.create, true) ? mssql_database.this[each.key].id : data.mssql_database.this[each.key].id
+  database_id = local.database_ids[each.key]
+}
+
+# A global owner is materialised as a database user in every other declared
+# database as well, so a single credential can administer all of them.
+resource "mssql_sql_user" "owner_global" {
+  depends_on  = [mssql_sql_login.owner]
+  for_each    = local.global_owner_targets
+  name        = local.owner_list[each.value.owner_key]
+  login_id    = mssql_sql_login.owner[each.value.owner_key].id
+  database_id = local.database_ids[each.value.db_key]
 }
 
 data "mssql_server_role" "public" {
@@ -106,10 +132,14 @@ data "mssql_server_role" "public" {
 }
 
 data "mssql_database_role" "db_owner" {
-  for_each = {
-    for key, db in var.databases : key => db
-  }
-  database_id = try(each.value.create, true) ? mssql_database.this[each.key].id : data.mssql_database.this[each.key].id
+  for_each    = var.databases
+  database_id = local.database_ids[each.key]
+  name        = "db_owner"
+}
+
+data "mssql_database_role" "db_owner_external" {
+  for_each    = toset(local.external_database_ids)
+  database_id = each.value
   name        = "db_owner"
 }
 
@@ -129,4 +159,11 @@ resource "mssql_database_role_member" "dbowner" {
   }
   role_id   = data.mssql_database_role.db_owner[each.key].id
   member_id = mssql_sql_user.owner[each.key].id
+}
+
+resource "mssql_database_role_member" "dbowner_global" {
+  depends_on = [mssql_sql_login.owner]
+  for_each   = local.global_owner_targets
+  role_id    = data.mssql_database_role.db_owner[each.value.db_key].id
+  member_id  = mssql_sql_user.owner_global[each.key].id
 }

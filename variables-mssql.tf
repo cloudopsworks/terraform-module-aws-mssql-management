@@ -1,5 +1,5 @@
 ##
-# (c) 2021-2025
+# (c) 2021-2026
 #     Cloud Ops Works LLC - https://cloudops.works/
 #     Find us on:
 #       GitHub: https://github.com/cloudopsworks
@@ -8,12 +8,35 @@
 #
 
 ## Users definition - YAML format
+#
+# A user always has a single server-level login and one database user per
+# database it is assigned to. Databases are resolved in this order, and the
+# first one is the default: it sets the login's default database and is the
+# database recorded in the user's Secrets Manager secret.
+#
+#   1. database_id   (single, undeclared database - highest precedence)
+#   2. db_ref        (single, declared database)
+#   3. database_ids  (list, undeclared databases)
+#   4. db_refs       (list, declared databases)
+#
+# `db_ref` and `database_id` are the pre-multi-database attributes and keep
+# working unchanged; they now simply denote the first database.
+#
 # users:
 #   <user_ref>:
 #     name: "user_name"                      # (Required) Name of the user
 #     grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly
-#     db_ref: "db_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server
-#     database_id: "db_id"                   # (Optional) Direct ID of the database this user is associated with
+#     db_ref: "db_reference"                 # (Optional) Reference to a database declared in `databases`. Becomes the user's default database
+#     db_refs:                               # (Optional) References to every database declared in `databases` the user is created in. Defaults to []
+#       - "db_reference"
+#     database_id: "db_id"                   # (Optional) Direct ID of a database not declared in `databases`. Takes precedence over db_ref as the default database
+#     database_ids:                          # (Optional) Direct IDs of every undeclared database the user is created in. Defaults to []
+#       - "db_id"
+#     database_name: "db_name"               # (Optional) Database name used in the secret when the user is attached by database_id only
+#     schema: "dbo"                          # (Optional) Schema the readonly/readwrite grant applies to. Defaults to dbo
+#     schemas:                               # (Optional) Additional schemas the readonly/readwrite grant applies to, in every assigned database. Defaults to []
+#       - "app"
+#     connection_string_type: "jdbc"         # (Optional) Emit a connection string in the secret. Possible values: jdbc, jdbc_plain, dotnet, odbc, node, gomssql
 #     default_language: "English"            # (Optional) Default language for the user
 #     check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
 #     check_password_policy: false           # (Optional) Check password policy. Defaults to false
@@ -32,8 +55,17 @@ users:
   <user_ref>:
     name: "user_name"                      # (Required) Name of the user
     grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly
-    db_ref: "db_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server
-    database_id: "db_id"                   # (Optional) Direct ID of the database this user is associated with
+    db_ref: "db_reference"                 # (Optional) Reference to a database declared in `databases`. Becomes the user's default database
+    db_refs:                               # (Optional) References to every database declared in `databases` the user is created in. Defaults to []
+      - "db_reference"
+    database_id: "db_id"                   # (Optional) Direct ID of a database not declared in `databases`. Takes precedence over db_ref as the default database
+    database_ids:                          # (Optional) Direct IDs of every undeclared database the user is created in. Defaults to []
+      - "db_id"
+    database_name: "db_name"               # (Optional) Database name used in the secret when the user is attached by database_id only
+    schema: "dbo"                          # (Optional) Schema the readonly/readwrite grant applies to. Defaults to dbo
+    schemas:                               # (Optional) Additional schemas the readonly/readwrite grant applies to, in every assigned database. Defaults to []
+      - "app"
+    connection_string_type: "jdbc"         # (Optional) Emit a connection string in the secret. Possible values: jdbc, jdbc_plain, dotnet, odbc, node, gomssql
     default_language: "English"            # (Optional) Default language for the user
     check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
     check_password_policy: false           # (Optional) Check password policy. Defaults to false
@@ -49,6 +81,19 @@ users:
 EOT
   type        = any
   default     = {}
+
+  validation {
+    condition = alltrue([
+      for key, user in var.users : length(distinct(concat(
+        compact([try(user.database_id, "")]), try(user.database_ids, []),
+        compact([try(user.db_ref, "")]), try(user.db_refs, [])
+        ))) == length(concat(
+        compact([try(user.database_id, "")]), try(user.database_ids, []),
+        compact([try(user.db_ref, "")]), try(user.db_refs, [])
+      ))
+    ])
+    error_message = "Each user must reference every database at most once across db_ref, db_refs, database_id and database_ids."
+  }
 }
 
 ## Roles definition - YAML format
@@ -78,12 +123,27 @@ EOT
 }
 
 ## Databases definition - YAML format
+#
+# `schemas` declares the schemas the module creates in each database. SQL Server
+# provides `dbo` (the default schema for principals) plus `guest`, `sys` and
+# `information_schema` with every database; declaring any of them is accepted
+# and resolves to the existing schema instead of creating one.
+#
+# `global_owner` promotes a single database owner to db_owner of every database
+# declared in this variable, so one credential administers all of them. It has
+# no effect unless `create_owner` is also true.
+#
 # databases:
 #   <db_ref>:
 #     name: "db_name"                        # (Required) Name of the database
 #     create: true                           # (Optional) Whether to create the database. Defaults to true
 #     create_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false
+#     global_owner: false                    # (Optional) Make this database's owner a db_owner of every declared database. Requires create_owner. Defaults to false
 #     owner: "owner_name"                    # (Optional) Owner of the database, required if create_owner is false
+#     schemas:                               # (Optional) Schemas to create in the database. Defaults to []
+#       - "app"                              #            Shorthand form: the schema name
+#       - name: "reporting"                  #            (Required) Schema name. `dbo`, `guest`, `sys` and `information_schema` are built in and are never created
+#         owner_ref: "user_ref"              #            (Optional) Reference to a user in `users` that owns the schema. The user must be assigned to this database. Defaults to null
 #     default_collation: "SQL_Latin1_General_CP1_CI_AS" # (Optional) Collation of the database. Defaults to server default
 #     default_language: "English"            # (Optional) Default language for the owner user
 #     check_password_expiration: false       # (Optional) Check password expiration for owner. Defaults to false
@@ -102,7 +162,12 @@ databases:
     name: "db_name"                        # (Required) Name of the database
     create: true                           # (Optional) Whether to create the database. Defaults to true
     create_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false
+    global_owner: false                    # (Optional) Make this database's owner a db_owner of every declared database. Requires create_owner. Defaults to false
     owner: "owner_name"                    # (Optional) Owner of the database, required if create_owner is false
+    schemas:                               # (Optional) Schemas to create in the database. Defaults to []
+      - "app"                              #            Shorthand form: the schema name
+      - name: "reporting"                  #            (Required) Schema name. `dbo`, `guest`, `sys` and `information_schema` are built in and are never created
+        owner_ref: "user_ref"              #            (Optional) Reference to a user in `users` that owns the schema. The user must be assigned to this database. Defaults to null
     default_collation: "SQL_Latin1_General_CP1_CI_AS" # (Optional) Collation of the database. Defaults to server default
     default_language: "English"            # (Optional) Default language for the owner user
     check_password_expiration: false       # (Optional) Check password expiration for owner. Defaults to false
@@ -117,6 +182,23 @@ databases:
 EOT
   type        = any
   default     = {}
+
+  validation {
+    condition = alltrue([
+      for key, db in var.databases : try(db.create_owner, false)
+      if try(db.global_owner, false)
+    ])
+    error_message = "databases.<db_ref>.global_owner requires create_owner to be true - there is no owner login to promote otherwise."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for key, db in var.databases : [
+        for schema in try(db.schemas, []) : try(schema.name, schema) != ""
+      ]
+    ]))
+    error_message = "Every entry of databases.<db_ref>.schemas must be a non-empty schema name, or an object carrying a non-empty name."
+  }
 }
 
 ## Hoop attributes - YAML format

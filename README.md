@@ -48,7 +48,9 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 This Terraform module simplifies AWS MSSQL database management by providing a declarative approach to:
 
 - **Database Management**: Create and configure MSSQL databases with custom collations
+- **Schema Management**: Declare schemas per database, with optional schema owners
 - **User Management**: Automated user creation with different permission levels (owner, readwrite, readonly)
+- **Multi-Database Users**: A single login assigned to any number of databases, with grants applied in each
 - **Role Management**: Flexible role-based access control with granular permissions
 - **Security Integration**: AWS Secrets Manager integration for secure credential storage
 - **Secret Lifecycle Controls**: Recovery windows, cross-region replication, and import of existing secrets
@@ -110,8 +112,14 @@ inputs = {
 |-------|------|-------------------|-------------|
 | `name` | `string` | **Required** | Name of the user |
 | `grant` | `string` | **Required** | Grant type: `owner`, `readwrite`, `readonly` |
-| `db_ref` | `string` | Optional | Reference to the database this user is associated with |
-| `database_id` | `string` | Optional | Direct ID of the database |
+| `db_ref` | `string` | Optional | Database in `databases` this user is created in; becomes the default database |
+| `db_refs` | `list(string)` | Optional | Every database in `databases` this user is created in (default: `[]`) |
+| `database_id` | `string` | Optional | Direct ID of a database not declared in `databases`; takes precedence over `db_ref` as the default |
+| `database_ids` | `list(string)` | Optional | Direct IDs of every undeclared database this user is created in (default: `[]`) |
+| `database_name` | `string` | Optional | Database name recorded in the secret when the user is attached by `database_id` only |
+| `schema` | `string` | Optional | Schema the `readonly`/`readwrite` grant applies to (default: `dbo`) |
+| `schemas` | `list(string)` | Optional | Additional schemas granted, in every assigned database (default: `[]`) |
+| `connection_string_type` | `string` | Optional | Emit a connection string in the secret: `jdbc`, `jdbc_plain`, `dotnet`, `odbc`, `node`, `gomssql` |
 | `default_language` | `string` | Optional | Default language for the user |
 | `check_password_expiration` | `bool` | Optional | Check password expiration (default: `false`) |
 | `check_password_policy` | `bool` | Optional | Check password policy (default: `false`) |
@@ -127,8 +135,17 @@ users:
   <user_ref>:
     name: "user_name"                      # (Required) Name of the user
     grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly
-    db_ref: "db_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server
-    database_id: "db_id"                   # (Optional) Direct ID of the database this user is associated with
+    db_ref: "db_reference"                 # (Optional) Database in `databases` this user is created in; becomes the default database
+    db_refs:                               # (Optional) Every database in `databases` this user is created in. Defaults to []
+      - "db_reference"
+    database_id: "db_id"                   # (Optional) Direct ID of a database not in `databases`; takes precedence over db_ref as the default
+    database_ids:                          # (Optional) Direct IDs of every undeclared database this user is created in. Defaults to []
+      - "db_id"
+    database_name: "db_name"               # (Optional) Database name recorded in the secret when attached by database_id only
+    schema: "dbo"                          # (Optional) Schema the readonly/readwrite grant applies to. Defaults to dbo
+    schemas:                               # (Optional) Additional schemas granted, in every assigned database. Defaults to []
+      - "app"
+    connection_string_type: "jdbc"         # (Optional) Connection string flavour stored in the secret: jdbc, jdbc_plain, dotnet, odbc, node, gomssql
     default_language: "English"            # (Optional) Default language for the user
     check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
     check_password_policy: false           # (Optional) Check password policy. Defaults to false
@@ -141,13 +158,97 @@ users:
         kms_key_id: "alias/replica-key"    # (Optional) KMS key in the replica region
 ```
 
+### Schemas, Multi-Database Users and Global Owners
+
+#### Schemas
+
+Schemas are declared per database under `databases.<db_ref>.schemas`, either as a
+bare name or as an object with an owner:
+
+```yaml
+databases:
+  app_db:
+    name: "application_db"
+    schemas:
+      - "app"
+      - name: "reporting"
+        owner_ref: "analyst"   # a user in `users`, assigned to this database
+```
+
+`dbo` is created by SQL Server with every database and is the default schema for
+principals; `guest`, `sys` and `information_schema` are built in as well. The
+module never creates any of them - declaring one is accepted and simply resolves
+to the existing schema, so `schema: "dbo"` on a user keeps working.
+
+Schemas created in the same run are resolvable in that run: the schema map merges
+the schemas read from the server with the ones this module creates, so a user can
+be granted on a schema declared in the same apply.
+
+#### Multi-database users
+
+A user always has one server-level login and one database user per database it is
+assigned to. Grants (`owner`, `readwrite`, `readonly`) are applied in **every**
+assigned database, across every schema in the user's schema list.
+
+Databases resolve in this order, and the first one is the **default**: it sets the
+login's default database, the name of the Secrets Manager secret and the `dbname`
+stored inside it.
+
+| Order | Attribute | Notes |
+|-------|-----------|-------|
+| 1 | `database_id` | Single, undeclared database. Highest precedence |
+| 2 | `db_ref` | Single, declared database |
+| 3 | `database_ids` | List, undeclared databases |
+| 4 | `db_refs` | List, declared databases |
+
+`db_ref` and `database_id` are the pre-multi-database attributes and behave
+exactly as before; they now simply denote the first database. A user may reference
+each database only once across all four attributes.
+
+```yaml
+users:
+  reporting_user:
+    name: "reporting_user"
+    grant: "readonly"
+    db_refs:                 # created in all three; app_db is the default
+      - "app_db"
+      - "billing_db"
+      - "archive_db"
+    schemas:                 # granted on both schemas in each of them
+      - "dbo"
+      - "reporting"
+```
+
+#### Global owners
+
+Setting `global_owner: true` on a database that also has `create_owner: true`
+promotes that owner to `db_owner` of **every** database declared in `databases`,
+so a single credential administers all of them. The owner login, its password
+rotation and its Secrets Manager secret stay attached to the database that
+declares it.
+
+```yaml
+databases:
+  app_db:
+    name: "application_db"
+    create_owner: true
+    global_owner: true       # owner of application_db is db_owner everywhere
+  billing_db:
+    name: "billing_db"
+  archive_db:
+    name: "archive_db"
+    create: false            # pre-existing database, still gets the global owner
+```
+
 ### Databases (`databases` variable)
 | Field | Type | Required/Optional | Description |
 |-------|------|-------------------|-------------|
 | `name` | `string` | **Required** | Name of the database |
 | `create` | `bool` | Optional | Whether to create the database (default: `true`) |
 | `create_owner` | `bool` | Optional | If the database should be created with an owner (default: `false`) |
+| `global_owner` | `bool` | Optional | Make this database's owner a `db_owner` of **every** declared database; requires `create_owner` (default: `false`) |
 | `owner` | `string` | Optional | Owner of the database, required if `create_owner` is false |
+| `schemas` | `list(any)` | Optional | Schemas created in the database, as names or `{ name, owner_ref }` objects (default: `[]`) |
 | `default_collation` | `string` | Optional | Collation of the database |
 | `default_language` | `string` | Optional | Default language for the owner user |
 | `check_password_expiration` | `bool` | Optional | Check password expiration for owner (default: `false`) |
@@ -165,7 +266,12 @@ databases:
     name: "db_name"                        # (Required) Name of the database
     create: true                           # (Optional) Whether to create the database. Defaults to true
     create_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false
+    global_owner: false                    # (Optional) Make this owner a db_owner of every declared database. Requires create_owner. Defaults to false
     owner: "owner_name"                    # (Optional) Owner of the database, required if create_owner is false
+    schemas:                               # (Optional) Schemas to create in this database. Defaults to []
+      - "app"                              #            Shorthand form: the schema name
+      - name: "reporting"                  #            (Required) Schema name
+        owner_ref: "user_ref"              #            (Optional) User in `users` owning the schema; must be assigned to this database
     default_collation: "SQL_Latin1_General_CP1_CI_AS" # (Optional) Collation of the database. Defaults to server default
     default_language: "English"            # (Optional) Default language for the owner user
     check_password_expiration: false       # (Optional) Check password expiration for owner. Defaults to false
@@ -385,6 +491,67 @@ inputs = {
 }
 ```
 
+## Example: Schemas, a multi-database user and a global owner
+
+```hcl
+inputs = {
+  org = {
+    organization_name = "acme-corp"
+    organization_unit = "backend"
+    environment_type  = "production"
+    environment_name  = "prod"
+  }
+
+  databases = {
+    app_db = {
+      name         = "ecommerce"
+      create_owner = true
+      global_owner = true          # this owner is db_owner of all three databases
+      schemas = [
+        "app",
+        {
+          name      = "reporting"
+          owner_ref = "analytics"  # owned by the analytics user below
+        },
+      ]
+    }
+    billing_db = {
+      name    = "billing"
+      schemas = ["app"]
+    }
+    archive_db = {
+      name   = "archive"
+      create = false               # pre-existing, still gets the global owner
+    }
+  }
+
+  users = {
+    # Written access to app + dbo in all three databases. The secret records
+    # ecommerce, the first entry of db_refs.
+    etl = {
+      name    = "etl_service"
+      grant   = "readwrite"
+      db_refs = ["app_db", "billing_db", "archive_db"]
+      schemas = ["app", "dbo"]
+    }
+
+    # Read-only on the reporting schema it owns.
+    analytics = {
+      name   = "analytics_reader"
+      grant  = "readonly"
+      db_ref = "app_db"
+      schema = "reporting"
+    }
+  }
+
+  rds = {
+    enabled     = true
+    name        = "ecommerce-mssql"
+    secret_name = "prod/ecommerce/mssql"
+  }
+}
+```
+
 
 
 ## Makefile Targets
@@ -411,10 +578,10 @@ Available targets:
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.35 |
-| <a name="provider_mssql"></a> [mssql](#provider\_mssql) | ~> 0.6 |
-| <a name="provider_random"></a> [random](#provider\_random) | n/a |
-| <a name="provider_time"></a> [time](#provider\_time) | n/a |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.41.0 |
+| <a name="provider_mssql"></a> [mssql](#provider\_mssql) | 0.6.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
+| <a name="provider_time"></a> [time](#provider\_time) | 0.13.1 |
 
 ## Modules
 
@@ -436,13 +603,17 @@ Available targets:
 | [aws_secretsmanager_secret_version.user_rotated](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [mssql_database.this](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database) | resource |
 | [mssql_database_role_member.dbowner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database_role_member) | resource |
+| [mssql_database_role_member.dbowner_global](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database_role_member) | resource |
 | [mssql_database_role_member.user_all_db](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/database_role_member) | resource |
+| [mssql_schema.this](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/schema) | resource |
 | [mssql_schema_permission.user_ro_tab_def_priv](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/schema_permission) | resource |
 | [mssql_schema_permission.user_tab_def_priv](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/schema_permission) | resource |
 | [mssql_sql_login.owner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_login) | resource |
 | [mssql_sql_login.user](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_login) | resource |
 | [mssql_sql_user.owner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_user) | resource |
+| [mssql_sql_user.owner_global](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_user) | resource |
 | [mssql_sql_user.user](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_user) | resource |
+| [mssql_sql_user.user_extra](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/resources/sql_user) | resource |
 | [random_password.owner](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.owner_initial](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.user](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
@@ -466,14 +637,16 @@ Available targets:
 | [aws_secretsmanager_secrets.user](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secrets) | data source |
 | [mssql_database.this](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/database) | data source |
 | [mssql_database_role.db_owner](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/database_role) | data source |
+| [mssql_database_role.db_owner_external](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/database_role) | data source |
 | [mssql_schemas.all_schemas](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/schemas) | data source |
+| [mssql_schemas.external](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/schemas) | data source |
 | [mssql_server_role.public](https://registry.terraform.io/providers/PGSSoft/mssql/latest/docs/data-sources/server_role) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_databases"></a> [databases](#input\_databases) | databases:<br/>  <db\_ref>:<br/>    name: "db\_name"                        # (Required) Name of the database<br/>    create: true                           # (Optional) Whether to create the database. Defaults to true<br/>    create\_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false<br/>    owner: "owner\_name"                    # (Optional) Owner of the database, required if create\_owner is false<br/>    default\_collation: "SQL\_Latin1\_General\_CP1\_CI\_AS" # (Optional) Collation of the database. Defaults to server default<br/>    default\_language: "English"            # (Optional) Default language for the owner user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration for owner. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy for owner. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password for owner on first login. Defaults to false<br/>    secret:                                # (Optional) Owner-secret settings, used when create\_owner is true.<br/>      import: false                        # (Optional) Import the existing owner secret. Defaults to false.<br/>      recovery\_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets\_recovery\_window.<br/>      replica:<br/>        region: "us-west-2"                # (Optional) Replica region. Defaults to secrets\_replica\_region.<br/>        kms\_key\_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets\_replica\_kms\_key\_id. | `any` | `{}` | no |
+| <a name="input_databases"></a> [databases](#input\_databases) | databases:<br/>  <db\_ref>:<br/>    name: "db\_name"                        # (Required) Name of the database<br/>    create: true                           # (Optional) Whether to create the database. Defaults to true<br/>    create\_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false<br/>    global\_owner: false                    # (Optional) Make this database's owner a db\_owner of every declared database. Requires create\_owner. Defaults to false<br/>    owner: "owner\_name"                    # (Optional) Owner of the database, required if create\_owner is false<br/>    schemas:                               # (Optional) Schemas to create in the database. Defaults to []<br/>      - "app"                              #            Shorthand form: the schema name<br/>      - name: "reporting"                  #            (Required) Schema name. `dbo`, `guest`, `sys` and `information_schema` are built in and are never created<br/>        owner\_ref: "user\_ref"              #            (Optional) Reference to a user in `users` that owns the schema. The user must be assigned to this database. Defaults to null<br/>    default\_collation: "SQL\_Latin1\_General\_CP1\_CI\_AS" # (Optional) Collation of the database. Defaults to server default<br/>    default\_language: "English"            # (Optional) Default language for the owner user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration for owner. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy for owner. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password for owner on first login. Defaults to false<br/>    secret:                                # (Optional) Owner-secret settings, used when create\_owner is true.<br/>      import: false                        # (Optional) Import the existing owner secret. Defaults to false.<br/>      recovery\_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets\_recovery\_window.<br/>      replica:<br/>        region: "us-west-2"                # (Optional) Replica region. Defaults to secrets\_replica\_region.<br/>        kms\_key\_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets\_replica\_kms\_key\_id. | `any` | `{}` | no |
 | <a name="input_direct"></a> [direct](#input\_direct) | direct:<br/>  server\_name: "server"                    # (Required) Logical server name<br/>  host: "host\_address"                     # (Required) Database host address<br/>  port: 1433                               # (Required) Database port<br/>  jump\_host: "jump\_host"                   # (Optional) Jump host address<br/>  jump\_port: 22                            # (Optional) Jump host port<br/>  username: "admin"                        # (Optional) Database username<br/>  password: "password"                     # (Optional) Database password<br/>  secret\_name: "secret\_path"               # (Optional) AWS Secrets Manager secret name for credentials<br/>  engine: "sqlserver"                     # (Optional) Database engine. Defaults to sqlserver<br/>  db\_name: "master"                        # (Optional) Default database name | `any` | `{}` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
 | <a name="input_force_reset"></a> [force\_reset](#input\_force\_reset) | Force Reset the password # (Optional) Defaults to false | `bool` | `false` | no |
@@ -492,15 +665,17 @@ Available targets:
 | <a name="input_secrets_replica_region"></a> [secrets\_replica\_region](#input\_secrets\_replica\_region) | (optional) Region to replicate every managed secret into. When null, no replica is created unless set per entity. Defaults to null | `string` | `null` | no |
 | <a name="input_specials_in_password"></a> [specials\_in\_password](#input\_specials\_in\_password) | (optional) Use special characters in generated owner/user passwords. When false, generated passwords are alphanumeric only. Defaults to true | `bool` | `true` | no |
 | <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke ID Number, must be a 3 digit number | `string` | `"001"` | no |
-| <a name="input_users"></a> [users](#input\_users) | users:<br/>  <user\_ref>:<br/>    name: "user\_name"                      # (Required) Name of the user<br/>    grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly<br/>    db\_ref: "db\_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server<br/>    database\_id: "db\_id"                   # (Optional) Direct ID of the database this user is associated with<br/>    default\_language: "English"            # (Optional) Default language for the user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password on first login. Defaults to false<br/>    secret:                                # (Optional) Per-user Secrets Manager settings. Module-wide defaults apply when omitted.<br/>      import: false                        # (Optional) Import the existing Secrets Manager secret. Defaults to false.<br/>      recovery\_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets\_recovery\_window.<br/>      replica:<br/>        region: "us-west-2"                # (Optional) Replica region. Defaults to secrets\_replica\_region.<br/>        kms\_key\_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets\_replica\_kms\_key\_id.<br/>    hoop:                                  # (Optional) Hoop settings for the user<br/>      access\_control: ["group"]            # (Optional) Access control groups merged with hoop.access\_control. Defaults to [] | `any` | `{}` | no |
+| <a name="input_users"></a> [users](#input\_users) | users:<br/>  <user\_ref>:<br/>    name: "user\_name"                      # (Required) Name of the user<br/>    grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly<br/>    db\_ref: "db\_reference"                 # (Optional) Reference to a database declared in `databases`. Becomes the user's default database<br/>    db\_refs:                               # (Optional) References to every database declared in `databases` the user is created in. Defaults to []<br/>      - "db\_reference"<br/>    database\_id: "db\_id"                   # (Optional) Direct ID of a database not declared in `databases`. Takes precedence over db\_ref as the default database<br/>    database\_ids:                          # (Optional) Direct IDs of every undeclared database the user is created in. Defaults to []<br/>      - "db\_id"<br/>    database\_name: "db\_name"               # (Optional) Database name used in the secret when the user is attached by database\_id only<br/>    schema: "dbo"                          # (Optional) Schema the readonly/readwrite grant applies to. Defaults to dbo<br/>    schemas:                               # (Optional) Additional schemas the readonly/readwrite grant applies to, in every assigned database. Defaults to []<br/>      - "app"<br/>    connection\_string\_type: "jdbc"         # (Optional) Emit a connection string in the secret. Possible values: jdbc, jdbc\_plain, dotnet, odbc, node, gomssql<br/>    default\_language: "English"            # (Optional) Default language for the user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password on first login. Defaults to false<br/>    secret:                                # (Optional) Per-user Secrets Manager settings. Module-wide defaults apply when omitted.<br/>      import: false                        # (Optional) Import the existing Secrets Manager secret. Defaults to false.<br/>      recovery\_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets\_recovery\_window.<br/>      replica:<br/>        region: "us-west-2"                # (Optional) Replica region. Defaults to secrets\_replica\_region.<br/>        kms\_key\_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets\_replica\_kms\_key\_id.<br/>    hoop:                                  # (Optional) Hoop settings for the user<br/>      access\_control: ["group"]            # (Optional) Access control groups merged with hoop.access\_control. Defaults to [] | `any` | `{}` | no |
 
 ## Outputs
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_databases"></a> [databases](#output\_databases) | Managed databases keyed by their reference, with the resolved server-side database id. |
 | <a name="output_hoop_connections"></a> [hoop\_connections](#output\_hoop\_connections) | Hoop database connection definitions generated for managed owners and users. |
 | <a name="output_owners"></a> [owners](#output\_owners) | Managed database owners and their Secrets Manager credential references. |
-| <a name="output_users"></a> [users](#output\_users) | Managed database users and their Secrets Manager credential references. |
+| <a name="output_schemas"></a> [schemas](#output\_schemas) | Schemas created by this module, keyed by "<db\_ref>/<schema\_name>". |
+| <a name="output_users"></a> [users](#output\_users) | Managed database users, the databases they are assigned to, and their Secrets Manager credential references. |
 
 
 

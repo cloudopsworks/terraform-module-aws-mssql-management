@@ -1,5 +1,5 @@
 ##
-# (c) 2021-2025
+# (c) 2021-2026
 #     Cloud Ops Works LLC - https://cloudops.works/
 #     Find us on:
 #       GitHub: https://github.com/cloudopsworks
@@ -54,7 +54,7 @@ resource "aws_secretsmanager_secret" "owner" {
     for key, db in var.databases : key => db if try(db.create_owner, false)
   }
   name                    = local.owner_name_list[each.key]
-  description             = "RDS Owner credentials - ${local.owner_list[each.key]} - ${local.psql.engine} - ${local.psql.server_name} - ${try(each.value.create, true) == true ? mssql_database.this[each.key].name : data.mssql_database.this[each.key].name}"
+  description             = "RDS Owner credentials - ${local.owner_list[each.key]} - ${local.psql.engine} - ${local.psql.server_name} - ${local.database_names[each.key]}"
   kms_key_id              = var.secrets_kms_key_id
   recovery_window_in_days = local.owner_secret_settings[each.key].recovery_window
   dynamic "replica" {
@@ -66,7 +66,7 @@ resource "aws_secretsmanager_secret" "owner" {
   }
   tags = merge(local.all_tags, {
     "rds-username"        = local.owner_list[each.key]
-    "rds-datatabase-name" = try(each.value.create, true) ? mssql_database.this[each.key].name : data.mssql_database.this[each.key].name
+    "rds-datatabase-name" = local.database_names[each.key]
     "rds-server-name"     = local.psql.server_name
   })
 }
@@ -87,7 +87,7 @@ resource "aws_secretsmanager_secret_version" "owner" {
       try(var.hoop.cluster, false) ? data.aws_rds_cluster.hoop_db_server[0].port :
       data.aws_db_instance.hoop_db_server[0].port
     ) : local.psql.port
-    dbname = try(each.value.create, true) ? mssql_database.this[each.key].name : data.mssql_database.this[each.key].name
+    dbname = local.database_names[each.key]
     engine = local.psql.engine
   })
 }
@@ -139,7 +139,7 @@ resource "aws_secretsmanager_secret_version" "owner_rotated" {
       try(var.hoop.cluster, false) ? data.aws_rds_cluster.hoop_db_server[0].port :
       data.aws_db_instance.hoop_db_server[0].port
     ) : local.psql.port
-    dbname = try(each.value.create, true) ? mssql_database.this[each.key].name : data.mssql_database.this[each.key].name
+    dbname = local.database_names[each.key]
     engine = local.psql.engine
   })
   lifecycle {
