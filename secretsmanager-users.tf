@@ -136,7 +136,7 @@ locals {
       } : {},
       try(var.users[key].connection_string_type, "") == "dotnet" ? {
         connection_string_type = var.users[key].connection_string_type
-        connection_string = format("Server=%s,%s;Database=%s;User Id=%s;Password={new_password};",
+        connection_string = format("Server=%s,%s;Database=%s;User Id=%s;Password=%s;",
           user_secret.host, user_secret.port,
           user_secret.dbname, user_secret.username, user_secret.password
         )
