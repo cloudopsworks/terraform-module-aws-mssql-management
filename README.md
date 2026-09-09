@@ -402,7 +402,7 @@ Available targets:
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.35 |
 | <a name="requirement_mssql"></a> [mssql](#requirement\_mssql) | ~> 0.6 |
@@ -410,22 +410,22 @@ Available targets:
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.41.0 |
-| <a name="provider_mssql"></a> [mssql](#provider\_mssql) | 0.6.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
-| <a name="provider_time"></a> [time](#provider\_time) | 0.13.1 |
+| ---- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.35 |
+| <a name="provider_mssql"></a> [mssql](#provider\_mssql) | ~> 0.6 |
+| <a name="provider_random"></a> [random](#provider\_random) | n/a |
+| <a name="provider_time"></a> [time](#provider\_time) | n/a |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_tags"></a> [tags](#module\_tags) | cloudopsworks/tags/local | 1.0.10 |
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_secretsmanager_secret.owner](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret.user](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret_rotation.owner](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_rotation) | resource |
@@ -472,7 +472,7 @@ Available targets:
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_databases"></a> [databases](#input\_databases) | databases:<br/>  <db\_ref>:<br/>    name: "db\_name"                        # (Required) Name of the database<br/>    create: true                           # (Optional) Whether to create the database. Defaults to true<br/>    create\_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false<br/>    owner: "owner\_name"                    # (Optional) Owner of the database, required if create\_owner is false<br/>    default\_collation: "SQL\_Latin1\_General\_CP1\_CI\_AS" # (Optional) Collation of the database. Defaults to server default<br/>    default\_language: "English"            # (Optional) Default language for the owner user<br/>    check\_password\_expiration: false       # (Optional) Check password expiration for owner. Defaults to false<br/>    check\_password\_policy: false           # (Optional) Check password policy for owner. Defaults to false<br/>    must\_change\_password: false            # (Optional) Must change password for owner on first login. Defaults to false<br/>    secret:                                # (Optional) Owner-secret settings, used when create\_owner is true.<br/>      import: false                        # (Optional) Import the existing owner secret. Defaults to false.<br/>      recovery\_window: 30                  # (Optional) Recovery window: 0 or 7-30 days. Defaults to secrets\_recovery\_window.<br/>      replica:<br/>        region: "us-west-2"                # (Optional) Replica region. Defaults to secrets\_replica\_region.<br/>        kms\_key\_id: "alias/key"            # (Optional) Replica-region KMS key. Defaults to secrets\_replica\_kms\_key\_id. | `any` | `{}` | no |
 | <a name="input_direct"></a> [direct](#input\_direct) | direct:<br/>  server\_name: "server"                    # (Required) Logical server name<br/>  host: "host\_address"                     # (Required) Database host address<br/>  port: 1433                               # (Required) Database port<br/>  jump\_host: "jump\_host"                   # (Optional) Jump host address<br/>  jump\_port: 22                            # (Optional) Jump host port<br/>  username: "admin"                        # (Optional) Database username<br/>  password: "password"                     # (Optional) Database password<br/>  secret\_name: "secret\_path"               # (Optional) AWS Secrets Manager secret name for credentials<br/>  engine: "sqlserver"                     # (Optional) Database engine. Defaults to sqlserver<br/>  db\_name: "master"                        # (Optional) Default database name | `any` | `{}` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
@@ -497,7 +497,7 @@ Available targets:
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_hoop_connections"></a> [hoop\_connections](#output\_hoop\_connections) | Hoop database connection definitions generated for managed owners and users. |
 | <a name="output_owners"></a> [owners](#output\_owners) | Managed database owners and their Secrets Manager credential references. |
 | <a name="output_users"></a> [users](#output\_users) | Managed database users and their Secrets Manager credential references. |
