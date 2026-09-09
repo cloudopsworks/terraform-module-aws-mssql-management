@@ -1,5 +1,5 @@
 ##
-# (c) 2021-2025
+# (c) 2021-2026
 #     Cloud Ops Works LLC - https://cloudops.works/
 #     Find us on:
 #       GitHub: https://github.com/cloudopsworks
@@ -45,6 +45,8 @@ resource "random_password" "user_initial" {
   min_lower        = 2
 }
 
+# One server-level login per user, regardless of how many databases the user is
+# assigned to. Its default database is the first of those databases.
 resource "mssql_sql_login" "user" {
   for_each = var.users
   name     = each.value.name
@@ -53,18 +55,29 @@ resource "mssql_sql_login" "user" {
     jsondecode(data.aws_secretsmanager_secret_version.user_rotated[each.key].secret_string)["password"] :
     random_password.user_initial[each.key].result
   )
-  default_database_id       = try(each.value.database_id, "") != "" ? each.value.database_id : (try(var.databases[each.value.db_ref].create, true) ? mssql_database.this[each.value.db_ref].id : data.mssql_database.this[each.value.db_ref].id)
+  default_database_id       = local.user_default_target[each.key].database_id
   default_language          = try(each.value.default_language, null)
   check_password_expiration = try(each.value.check_password_expiration, false)
   check_password_policy     = try(each.value.check_password_policy, false)
   must_change_password      = try(each.value.must_change_password, false)
 }
 
+# Database user in the user's default (first) database. Keyed by user reference
+# so the resource address is unchanged for single-database users.
 resource "mssql_sql_user" "user" {
   for_each    = var.users
   name        = each.value.name
-  database_id = try(each.value.database_id, "") != "" ? each.value.database_id : (try(var.databases[each.value.db_ref].create, true) ? mssql_database.this[each.value.db_ref].id : data.mssql_database.this[each.value.db_ref].id)
+  database_id = local.user_default_target[each.key].database_id
   login_id    = mssql_sql_login.user[each.key].id
+}
+
+# Database user in every additional database the user is assigned to, keyed by
+# "<user_ref>/<db_ref or database_id>".
+resource "mssql_sql_user" "user_extra" {
+  for_each    = local.user_extra_targets
+  name        = var.users[each.value.user_key].name
+  database_id = each.value.database_id
+  login_id    = mssql_sql_login.user[each.value.user_key].id
 }
 
 # resource "mssql_server_role_member" "user_public" {

@@ -6,8 +6,17 @@
 #   <user_ref>:
 #     name: "user_name"                            # (Required) Name of the user/login
 #     grant: "owner"                               # (Required) Grant type: "owner", "readwrite", "readonly"
-#     db_ref: "db_reference"                       # (Optional) Reference to a database defined in `databases`
-#     database_id: "db_id"                         # (Optional) Direct database ID
+#     db_ref: "db_reference"                       # (Optional) Reference to a database defined in `databases`; becomes the default database
+#     db_refs:                                     # (Optional) References to every database in `databases` the user is created in; default: []
+#       - "db_reference"
+#     database_id: "db_id"                         # (Optional) Direct ID of a database not in `databases`; takes precedence over db_ref as the default
+#     database_ids:                                # (Optional) Direct IDs of every undeclared database the user is created in; default: []
+#       - "db_id"
+#     database_name: "db_name"                     # (Optional) Database name recorded in the secret when attached by database_id only
+#     schema: "dbo"                                # (Optional) Schema the readonly/readwrite grant applies to; default: "dbo"
+#     schemas:                                     # (Optional) Extra schemas granted, in every assigned database; default: []
+#       - "app"
+#     connection_string_type: "jdbc"               # (Optional) Emit a connection string in the secret: jdbc, jdbc_plain, dotnet, odbc, node, gomssql
 #     default_language: "English"                  # (Optional) Default language for the user
 #     check_password_expiration: false             # (Optional) Check password expiration; default: false
 #     check_password_policy: false                 # (Optional) Check password policy; default: false
@@ -18,6 +27,13 @@
 #       replica:
 #         region: "us-west-2"                      # (Optional) Replica region; default: secrets_replica_region
 #         kms_key_id: "alias/key"                  # (Optional) Replica KMS key; default: secrets_replica_kms_key_id
+#     hoop:                                        # (Optional) Hoop settings for the user
+#       access_control: ["group"]                  # (Optional) Groups merged with hoop.access_control; default: []
+#
+# A user gets one server-level login plus one database user per assigned
+# database. Databases resolve in this order and the first one is the default
+# (it sets the login's default database and the database stored in the secret):
+#   database_id, db_ref, database_ids, db_refs
 users: {}
 
 # roles:                                           # (Optional) Map of SQL Server database roles/grants to manage
@@ -36,7 +52,12 @@ roles: {}
 #     name: "db_name"                              # (Required) Name of the database
 #     create: true                                 # (Optional) Create the database; default: true
 #     create_owner: false                          # (Optional) Create dedicated owner login; default: false
+#     global_owner: false                          # (Optional) Make this owner a db_owner of every declared database; requires create_owner; default: false
 #     owner: "owner_name"                          # (Optional) Owner name; required if create_owner=false
+#     schemas:                                     # (Optional) Schemas created in the database; default: []
+#       - "app"                                    #            Shorthand: the schema name
+#       - name: "reporting"                        #            (Required) Schema name
+#         owner_ref: "user_ref"                    #            (Optional) User in `users` owning the schema; must be assigned to this database; default: null
 #     default_collation: "SQL_Latin1_General_CP1_CI_AS" # (Optional) Collation; defaults to server default
 #     default_language: "English"                  # (Optional) Default language for owner user
 #     check_password_expiration: false             # (Optional) Password expiration for owner; default: false
@@ -48,6 +69,10 @@ roles: {}
 #       replica:
 #         region: "us-west-2"                      # (Optional) Replica region; default: secrets_replica_region
 #         kms_key_id: "alias/key"                  # (Optional) Replica KMS key; default: secrets_replica_kms_key_id
+#
+# `dbo`, `guest`, `sys` and `information_schema` ship with every SQL Server
+# database. Declaring them is accepted and resolves to the existing schema;
+# the module never creates them.
 databases: {}
 
 # hoop:                                            # (Optional) Hoop connection output settings

@@ -1,5 +1,5 @@
 ##
-# (c) 2021-2025
+# (c) 2021-2026
 #     Cloud Ops Works LLC - https://cloudops.works/
 #     Find us on:
 #       GitHub: https://github.com/cloudopsworks
@@ -7,11 +7,12 @@
 #     Distributed Under Apache v2.0 License
 #
 
-# TODO: Fix resolution of role under existing DBs
+# Users granted "owner" join db_owner in every database they are assigned to.
 resource "mssql_database_role_member" "user_all_db" {
   for_each = {
-    for key, user in var.users : key => user if try(user.grant, "") == "owner"
+    for pair_key, target in local.user_all_targets : pair_key => target
+    if try(var.users[target.user_key].grant, "") == "owner" && target.resolvable
   }
-  role_id   = try(each.value.db_ref, "") != "" ? data.mssql_database_role.db_owner[each.value.db_ref].id : null
-  member_id = mssql_sql_user.user[each.key].id
+  role_id   = local.db_owner_role_ids[each.value.target_key]
+  member_id = local.user_principal_ids[each.key]
 }

@@ -18,7 +18,9 @@ introduction: |-
   This Terraform module simplifies AWS MSSQL database management by providing a declarative approach to:
   
   - **Database Management**: Create and configure MSSQL databases with custom collations
+  - **Schema Management**: Declare schemas per database, with optional schema owners
   - **User Management**: Automated user creation with different permission levels (owner, readwrite, readonly)
+  - **Multi-Database Users**: A single login assigned to any number of databases, with grants applied in each
   - **Role Management**: Flexible role-based access control with granular permissions
   - **Security Integration**: AWS Secrets Manager integration for secure credential storage
   - **Secret Lifecycle Controls**: Recovery windows, cross-region replication, and import of existing secrets
@@ -75,8 +77,14 @@ usage: |-
   |-------|------|-------------------|-------------|
   | `name` | `string` | **Required** | Name of the user |
   | `grant` | `string` | **Required** | Grant type: `owner`, `readwrite`, `readonly` |
-  | `db_ref` | `string` | Optional | Reference to the database this user is associated with |
-  | `database_id` | `string` | Optional | Direct ID of the database |
+  | `db_ref` | `string` | Optional | Database in `databases` this user is created in; becomes the default database |
+  | `db_refs` | `list(string)` | Optional | Every database in `databases` this user is created in (default: `[]`) |
+  | `database_id` | `string` | Optional | Direct ID of a database not declared in `databases`; takes precedence over `db_ref` as the default |
+  | `database_ids` | `list(string)` | Optional | Direct IDs of every undeclared database this user is created in (default: `[]`) |
+  | `database_name` | `string` | Optional | Database name recorded in the secret when the user is attached by `database_id` only |
+  | `schema` | `string` | Optional | Schema the `readonly`/`readwrite` grant applies to (default: `dbo`) |
+  | `schemas` | `list(string)` | Optional | Additional schemas granted, in every assigned database (default: `[]`) |
+  | `connection_string_type` | `string` | Optional | Emit a connection string in the secret: `jdbc`, `jdbc_plain`, `dotnet`, `odbc`, `node`, `gomssql` |
   | `default_language` | `string` | Optional | Default language for the user |
   | `check_password_expiration` | `bool` | Optional | Check password expiration (default: `false`) |
   | `check_password_policy` | `bool` | Optional | Check password policy (default: `false`) |
@@ -92,8 +100,17 @@ usage: |-
     <user_ref>:
       name: "user_name"                      # (Required) Name of the user
       grant: "owner"                         # (Required) Grant type for the user. Possible values: owner, readwrite, readonly
-      db_ref: "db_reference"                 # (Optional) Reference to the database this user is associated with. Defaults to the default dbname of server
-      database_id: "db_id"                   # (Optional) Direct ID of the database this user is associated with
+      db_ref: "db_reference"                 # (Optional) Database in `databases` this user is created in; becomes the default database
+      db_refs:                               # (Optional) Every database in `databases` this user is created in. Defaults to []
+        - "db_reference"
+      database_id: "db_id"                   # (Optional) Direct ID of a database not in `databases`; takes precedence over db_ref as the default
+      database_ids:                          # (Optional) Direct IDs of every undeclared database this user is created in. Defaults to []
+        - "db_id"
+      database_name: "db_name"               # (Optional) Database name recorded in the secret when attached by database_id only
+      schema: "dbo"                          # (Optional) Schema the readonly/readwrite grant applies to. Defaults to dbo
+      schemas:                               # (Optional) Additional schemas granted, in every assigned database. Defaults to []
+        - "app"
+      connection_string_type: "jdbc"         # (Optional) Connection string flavour stored in the secret: jdbc, jdbc_plain, dotnet, odbc, node, gomssql
       default_language: "English"            # (Optional) Default language for the user
       check_password_expiration: false       # (Optional) Check password expiration. Defaults to false
       check_password_policy: false           # (Optional) Check password policy. Defaults to false
@@ -106,13 +123,97 @@ usage: |-
           kms_key_id: "alias/replica-key"    # (Optional) KMS key in the replica region
   ```
 
+  ### Schemas, Multi-Database Users and Global Owners
+
+  #### Schemas
+
+  Schemas are declared per database under `databases.<db_ref>.schemas`, either as a
+  bare name or as an object with an owner:
+
+  ```yaml
+  databases:
+    app_db:
+      name: "application_db"
+      schemas:
+        - "app"
+        - name: "reporting"
+          owner_ref: "analyst"   # a user in `users`, assigned to this database
+  ```
+
+  `dbo` is created by SQL Server with every database and is the default schema for
+  principals; `guest`, `sys` and `information_schema` are built in as well. The
+  module never creates any of them - declaring one is accepted and simply resolves
+  to the existing schema, so `schema: "dbo"` on a user keeps working.
+
+  Schemas created in the same run are resolvable in that run: the schema map merges
+  the schemas read from the server with the ones this module creates, so a user can
+  be granted on a schema declared in the same apply.
+
+  #### Multi-database users
+
+  A user always has one server-level login and one database user per database it is
+  assigned to. Grants (`owner`, `readwrite`, `readonly`) are applied in **every**
+  assigned database, across every schema in the user's schema list.
+
+  Databases resolve in this order, and the first one is the **default**: it sets the
+  login's default database, the name of the Secrets Manager secret and the `dbname`
+  stored inside it.
+
+  | Order | Attribute | Notes |
+  |-------|-----------|-------|
+  | 1 | `database_id` | Single, undeclared database. Highest precedence |
+  | 2 | `db_ref` | Single, declared database |
+  | 3 | `database_ids` | List, undeclared databases |
+  | 4 | `db_refs` | List, declared databases |
+
+  `db_ref` and `database_id` are the pre-multi-database attributes and behave
+  exactly as before; they now simply denote the first database. A user may reference
+  each database only once across all four attributes.
+
+  ```yaml
+  users:
+    reporting_user:
+      name: "reporting_user"
+      grant: "readonly"
+      db_refs:                 # created in all three; app_db is the default
+        - "app_db"
+        - "billing_db"
+        - "archive_db"
+      schemas:                 # granted on both schemas in each of them
+        - "dbo"
+        - "reporting"
+  ```
+
+  #### Global owners
+
+  Setting `global_owner: true` on a database that also has `create_owner: true`
+  promotes that owner to `db_owner` of **every** database declared in `databases`,
+  so a single credential administers all of them. The owner login, its password
+  rotation and its Secrets Manager secret stay attached to the database that
+  declares it.
+
+  ```yaml
+  databases:
+    app_db:
+      name: "application_db"
+      create_owner: true
+      global_owner: true       # owner of application_db is db_owner everywhere
+    billing_db:
+      name: "billing_db"
+    archive_db:
+      name: "archive_db"
+      create: false            # pre-existing database, still gets the global owner
+  ```
+
   ### Databases (`databases` variable)
   | Field | Type | Required/Optional | Description |
   |-------|------|-------------------|-------------|
   | `name` | `string` | **Required** | Name of the database |
   | `create` | `bool` | Optional | Whether to create the database (default: `true`) |
   | `create_owner` | `bool` | Optional | If the database should be created with an owner (default: `false`) |
+  | `global_owner` | `bool` | Optional | Make this database's owner a `db_owner` of **every** declared database; requires `create_owner` (default: `false`) |
   | `owner` | `string` | Optional | Owner of the database, required if `create_owner` is false |
+  | `schemas` | `list(any)` | Optional | Schemas created in the database, as names or `{ name, owner_ref }` objects (default: `[]`) |
   | `default_collation` | `string` | Optional | Collation of the database |
   | `default_language` | `string` | Optional | Default language for the owner user |
   | `check_password_expiration` | `bool` | Optional | Check password expiration for owner (default: `false`) |
@@ -130,7 +231,12 @@ usage: |-
       name: "db_name"                        # (Required) Name of the database
       create: true                           # (Optional) Whether to create the database. Defaults to true
       create_owner: false                    # (Optional) If the database should be created with an owner. Defaults to false
+      global_owner: false                    # (Optional) Make this owner a db_owner of every declared database. Requires create_owner. Defaults to false
       owner: "owner_name"                    # (Optional) Owner of the database, required if create_owner is false
+      schemas:                               # (Optional) Schemas to create in this database. Defaults to []
+        - "app"                              #            Shorthand form: the schema name
+        - name: "reporting"                  #            (Required) Schema name
+          owner_ref: "user_ref"              #            (Optional) User in `users` owning the schema; must be assigned to this database
       default_collation: "SQL_Latin1_General_CP1_CI_AS" # (Optional) Collation of the database. Defaults to server default
       default_language: "English"            # (Optional) Default language for the owner user
       check_password_expiration: false       # (Optional) Check password expiration for owner. Defaults to false
@@ -294,6 +400,67 @@ examples: |-
       }
     }
     
+    rds = {
+      enabled     = true
+      name        = "ecommerce-mssql"
+      secret_name = "prod/ecommerce/mssql"
+    }
+  }
+  ```
+
+  ## Example: Schemas, a multi-database user and a global owner
+
+  ```hcl
+  inputs = {
+    org = {
+      organization_name = "acme-corp"
+      organization_unit = "backend"
+      environment_type  = "production"
+      environment_name  = "prod"
+    }
+
+    databases = {
+      app_db = {
+        name         = "ecommerce"
+        create_owner = true
+        global_owner = true          # this owner is db_owner of all three databases
+        schemas = [
+          "app",
+          {
+            name      = "reporting"
+            owner_ref = "analytics"  # owned by the analytics user below
+          },
+        ]
+      }
+      billing_db = {
+        name    = "billing"
+        schemas = ["app"]
+      }
+      archive_db = {
+        name   = "archive"
+        create = false               # pre-existing, still gets the global owner
+      }
+    }
+
+    users = {
+      # Written access to app + dbo in all three databases. The secret records
+      # ecommerce, the first entry of db_refs.
+      etl = {
+        name    = "etl_service"
+        grant   = "readwrite"
+        db_refs = ["app_db", "billing_db", "archive_db"]
+        schemas = ["app", "dbo"]
+      }
+
+      # Read-only on the reporting schema it owns.
+      analytics = {
+        name   = "analytics_reader"
+        grant  = "readonly"
+        db_ref = "app_db"
+        schema = "reporting"
+      }
+    }
+
     rds = {
       enabled     = true
       name        = "ecommerce-mssql"
