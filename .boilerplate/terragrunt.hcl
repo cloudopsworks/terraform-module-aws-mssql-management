@@ -55,7 +55,7 @@ inputs = {
   rds = {
     enabled = true
     name = dependency.database.outputs.rds_instance_identifier
-    secret_name = dependency.database.outputs.rds_secrets_credentials_arn
+    secret_name = try(local.local_vars.rds.secret_name, dependency.database.outputs.rds_secrets_credentials_arn) # Allow override of secret_name
     cluster = false
   }
   {{- else }}
